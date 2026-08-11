@@ -1,0 +1,72 @@
+@import 'tailwindcss';
+
+@theme {
+  --font-sans: 'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'Fraunces', Georgia, serif;
+
+  --color-canvas: #f3efe6;
+  --color-canvas-dark: #12151a;
+  --color-surface: #fffdf8;
+  --color-surface-dark: #1a1f27;
+  --color-ink: #1c1917;
+  --color-ink-dark: #f5f0e8;
+  --color-muted: #6b645c;
+  --color-muted-dark: #a8a29a;
+  --color-border: #ddd5c8;
+  --color-border-dark: #2e3642;
+  --color-accent: #0f6e56;
+  --color-accent-dark: #34d399;
+  --color-danger: #b42318;
+  --color-warning: #b54708;
+}
+
+@layer base {
+  :root {
+    color-scheme: light;
+    --bg: var(--color-canvas);
+    --surface: var(--color-surface);
+    --ink: var(--color-ink);
+    --muted: var(--color-muted);
+    --line: var(--color-border);
+    --accent: var(--color-accent);
+    --danger: var(--color-danger);
+  }
+
+  .dark {
+    color-scheme: dark;
+    --bg: var(--color-canvas-dark);
+    --surface: var(--color-surface-dark);
+    --ink: var(--color-ink-dark);
+    --muted: var(--color-muted-dark);
+    --line: var(--color-border-dark);
+    --accent: var(--color-accent-dark);
+    --danger: #f97066;
+  }
+
+  html,
+  body,
+  #root {
+    min-height: 100%;
+  }
+
+  body {
+    margin: 0;
+    font-family: var(--font-sans);
+    background:
+      radial-gradient(1200px 600px at 10% -10%, rgb(15 110 86 / 0.12), transparent 55%),
+      radial-gradient(900px 500px at 100% 0%, rgb(180 83 9 / 0.08), transparent 50%),
+      var(--bg);
+    color: var(--ink);
+  }
+
+  .dark body {
+    background:
+      radial-gradient(1000px 500px at 0% 0%, rgb(52 211 153 / 0.08), transparent 50%),
+      radial-gradient(800px 400px at 100% 0%, rgb(59 130 246 / 0.06), transparent 45%),
+      var(--bg);
+  }
+
+  * {
+    border-color: var(--line);
+  }
+}
