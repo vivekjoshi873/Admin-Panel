@@ -1,113 +1,134 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { PageHeader } from '@/shared/components/ui/PageHeader';
 import { Skeleton } from '@/shared/components/ui/Skeleton';
 import { EmptyState } from '@/shared/components/ui/EmptyState';
 import { Button } from '@/shared/components/ui/Button';
-import {
-  getAnalyticsInventory,
-  getAnalyticsCustomers,
-  getAnalyticsOrders,
-  getAnalyticsProducts,
-  getAnalyticsRevenue,
-  getAnalyticsTimeseries,
-} from '../api';
-import {
-  ResponsiveContainer,
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  Tooltip,
-} from 'recharts';
+import { ForbiddenState } from '@/shared/components/ui/ForbiddenState';
+import { isForbidden } from '@/shared/lib/permissions';
+import { getAnalyticsSnapshot } from '../api';
 
-type PeriodKey = '7d' | '30d' | '90d' | 'custom';
+type PeriodKey = 'today' | 'yesterday' | '7d' | '30d' | '90d' | '12m' | 'all' | 'custom';
 
-function formatCurrency(value: any) {
+function formatCurrency(value: unknown) {
   const n = Number(value);
-  if (!Number.isFinite(n)) return '-';
-  return new Intl.NumberFormat(undefined, { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n);
+  if (!Number.isFinite(n)) return '—';
+  return new Intl.NumberFormat(undefined, {
+    style: 'currency',
+    currency: 'INR',
+    maximumFractionDigits: 0,
+  }).format(n);
 }
 
-function formatNumber(value: any) {
+function formatNumber(value: unknown) {
   const n = Number(value);
-  if (!Number.isFinite(n)) return '-';
-  return new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 }).format(n);
+  if (!Number.isFinite(n)) return '—';
+  return new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 }).format(n);
+}
+
+function RankedList({
+  title,
+  items,
+  valueKey,
+  nameKey,
+  format = 'number',
+}: {
+  title: string;
+  items: any[];
+  valueKey: string;
+  nameKey: string;
+  format?: 'number' | 'currency';
+}) {
+  const max = Math.max(...items.map((i) => Number(i[valueKey]) || 0), 1);
+
+  if (!items.length) {
+    return (
+      <div className="rounded-xl border border-[var(--line)] bg-[var(--surface)]/60 p-4">
+        <p className="font-semibold">{title}</p>
+        <p className="mt-3 text-sm text-[var(--muted)]">No rows for this period.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-xl border border-[var(--line)] bg-[var(--surface)]/60 p-4">
+      <p className="font-semibold">{title}</p>
+      <ol className="mt-3 space-y-3">
+        {items.slice(0, 8).map((item, index) => {
+          const value = Number(item[valueKey]) || 0;
+          const name = item[nameKey] ?? item.title ?? item.fullName ?? item.shopName ?? '—';
+          return (
+            <li key={item.uuid ?? item.productId ?? item.vendorId ?? item.userId ?? index}>
+              <div className="flex items-baseline justify-between gap-3 text-sm">
+                <span className="min-w-0 truncate">
+                  <span className="mr-2 text-[var(--muted)]">{index + 1}.</span>
+                  {name}
+                </span>
+                <span className="shrink-0 font-medium">
+                  {format === 'currency' ? formatCurrency(value) : formatNumber(value)}
+                </span>
+              </div>
+              <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-black/10 dark:bg-white/10">
+                <div
+                  className="h-full rounded-full bg-[var(--accent)]"
+                  style={{ width: `${Math.max(6, (value / max) * 100)}%` }}
+                />
+              </div>
+            </li>
+          );
+        })}
+      </ol>
+    </div>
+  );
 }
 
 export function AnalyticsPage() {
   const [period, setPeriod] = useState<PeriodKey>('30d');
-  const [groupBy] = useState<'day' | 'week' | 'month'>('day');
-
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
-
-  const queryParams = useMemo(() => {
-    if (period !== 'custom') {
-      return { period, groupBy };
-    }
-    return {
-      period: 'custom',
-      startDate: customStart || undefined,
-      endDate: customEnd || undefined,
-      groupBy,
-    };
-  }, [period, groupBy, customStart, customEnd]);
-
-  const timeseriesQuery = useQuery({
-    queryKey: ['admin', 'analytics', 'timeseries', queryParams],
-    queryFn: () => getAnalyticsTimeseries(queryParams as any),
-  });
-
-  const ordersQuery = useQuery({
-    queryKey: ['admin', 'analytics', 'orders', queryParams],
-    queryFn: () => getAnalyticsOrders(queryParams as any),
-  });
-
-  const revenueQuery = useQuery({
-    queryKey: ['admin', 'analytics', 'revenue', queryParams],
-    queryFn: () => getAnalyticsRevenue(queryParams as any),
-  });
-
-  const productsQuery = useQuery({
-    queryKey: ['admin', 'analytics', 'products', queryParams],
-    queryFn: () => getAnalyticsProducts(queryParams as any),
-  });
-
-  const customersQuery = useQuery({
-    queryKey: ['admin', 'analytics', 'customers', queryParams],
-    queryFn: () => getAnalyticsCustomers(queryParams as any),
-  });
-
-  const inventoryQuery = useQuery({
-    queryKey: ['admin', 'analytics', 'inventory'],
-    queryFn: getAnalyticsInventory,
-  });
-
-  const data = timeseriesQuery.data ?? [];
-
-  const hasData = Array.isArray(data) && data.length > 0;
-
   const [metric, setMetric] = useState<'orders' | 'revenue'>('orders');
 
-  const chartData = useMemo(() => {
-    return (data ?? []).map((p: any) => ({
-      label: p.date,
-      orders: p.orders,
-      revenue: p.revenue,
-    }));
-  }, [data]);
+  const params = useMemo(() => {
+    if (period === 'custom') {
+      return {
+        startDate: customStart || undefined,
+        endDate: customEnd || undefined,
+        groupBy: 'day',
+      };
+    }
+    return { period, groupBy: 'day' };
+  }, [period, customStart, customEnd]);
+
+  const query = useQuery({
+    queryKey: ['admin', 'analytics', params],
+    queryFn: () => getAnalyticsSnapshot(params),
+    placeholderData: (prev) => prev,
+  });
+
+  const snapshot = query.data ?? {};
+  const timeseries = Array.isArray(snapshot.timeseries) ? snapshot.timeseries : [];
+  const chartData = timeseries.map((p: any) => ({
+    label: p.date,
+    orders: p.orders,
+    revenue: p.revenue,
+  }));
+
+  const summary = snapshot.summary ?? {};
+  const topProducts = snapshot.topProducts ?? [];
+  const topVendors = snapshot.vendors ?? snapshot.topVendors ?? [];
+  const topCustomers = snapshot.topCustomers ?? [];
 
   return (
     <div>
       <PageHeader
         title="Analytics"
-        description="Timeseries + overview stats for orders, revenue, customers, products, and inventory."
+        description="Marketplace snapshot — timeseries, period filter, and ranked products / vendors / customers."
       />
 
-      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+      <div className="mb-4 flex min-h-[52px] flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
         <div className="flex flex-wrap gap-2">
-          {(['7d', '30d', '90d'] as PeriodKey[]).map((k) => (
+          {(['today', 'yesterday', '7d', '30d', '90d', '12m', 'all'] as PeriodKey[]).map((k) => (
             <Button
               key={k}
               size="sm"
@@ -127,15 +148,13 @@ export function AnalyticsPage() {
         </div>
 
         {period === 'custom' ? (
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-            <label className="text-sm text-[var(--muted)]">Start</label>
+          <div className="flex flex-wrap items-center gap-2">
             <input
               type="date"
               value={customStart}
               onChange={(e) => setCustomStart(e.target.value)}
               className="h-10 rounded-lg border border-[var(--line)] bg-[var(--surface)] px-3"
             />
-            <label className="text-sm text-[var(--muted)]">End</label>
             <input
               type="date"
               value={customEnd}
@@ -163,74 +182,102 @@ export function AnalyticsPage() {
         </div>
       </div>
 
-      {(timeseriesQuery.isLoading || ordersQuery.isLoading || revenueQuery.isLoading) ? (
+      {query.isLoading && !query.data ? (
         <div className="space-y-6">
-          <Skeleton className="h-10 w-full" />
-          <div className="rounded-xl border border-[var(--line)] bg-[var(--surface)]/60 p-4">
-            <Skeleton className="h-[320px] w-full" />
+          <div className="grid gap-3 sm:grid-cols-3">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <Skeleton key={i} className="h-24 w-full" />
+            ))}
           </div>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <Skeleton key={i} className="h-28 w-full" />
+          <Skeleton className="h-[320px] w-full" />
+          <div className="grid gap-3 lg:grid-cols-3">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <Skeleton key={i} className="h-64 w-full" />
             ))}
           </div>
         </div>
-      ) : !hasData ? (
-        <EmptyState title="No data for this range" description="Try another period selection." />
+      ) : query.isError && isForbidden(query.error) ? (
+        <ForbiddenState error={query.error} fallback="analytics.view" />
+      ) : query.isError ? (
+        <EmptyState title="Could not load analytics" description="Try another period or refresh." />
       ) : (
-        <div className="space-y-6">
-          <div className="rounded-xl border border-[var(--line)] bg-[var(--surface)]/60 p-4">
-            <div className="flex items-center justify-between gap-3 border-b border-[var(--line)] pb-3">
-              <p className="font-semibold">Timeseries</p>
-              <p className="text-sm text-[var(--muted)]">Metric: {metric}</p>
-            </div>
-            <div className="h-[320px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 10 }}>
-                  <XAxis dataKey="label" tick={{ fontSize: 12 }} />
-                  <YAxis tick={{ fontSize: 12 }} />
-                  <Tooltip
-                    formatter={(value: any) =>
-                      metric === 'revenue' ? formatCurrency(value) : formatNumber(value)
-                    }
-                  />
-                  <Line type="monotone" dataKey={metric} stroke="#0f6e56" dot={false} />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="space-y-6" style={{ minHeight: 640 }}>
+          <div className="grid gap-3 sm:grid-cols-3">
             <div className="rounded-xl border border-[var(--line)] bg-[var(--surface)]/60 p-4">
               <p className="text-sm text-[var(--muted)]">New orders</p>
-              <p className="mt-2 text-2xl font-semibold">{formatNumber(ordersQuery.data?.newOrders)}</p>
-              <p className="mt-1 text-sm text-[var(--muted)]">Growth: {formatNumber(ordersQuery.data?.growthPct)}%</p>
+              <p className="mt-2 text-2xl font-semibold">{formatNumber(summary.newOrders)}</p>
+              <p className="mt-1 text-sm text-[var(--muted)]">
+                Growth {formatNumber(summary.ordersGrowthPct)}%
+              </p>
             </div>
             <div className="rounded-xl border border-[var(--line)] bg-[var(--surface)]/60 p-4">
-              <p className="text-sm text-[var(--muted)]">Gross sales</p>
-              <p className="mt-2 text-2xl font-semibold">{formatCurrency(revenueQuery.data?.grossSales)}</p>
-              <p className="mt-1 text-sm text-[var(--muted)]">Paid revenue: {formatCurrency(revenueQuery.data?.paidRevenue)}</p>
+              <p className="text-sm text-[var(--muted)]">Revenue</p>
+              <p className="mt-2 text-2xl font-semibold">{formatCurrency(summary.revenue)}</p>
+              <p className="mt-1 text-sm text-[var(--muted)]">
+                Growth {formatNumber(summary.revenueGrowthPct)}%
+              </p>
             </div>
             <div className="rounded-xl border border-[var(--line)] bg-[var(--surface)]/60 p-4">
               <p className="text-sm text-[var(--muted)]">New customers</p>
-              <p className="mt-2 text-2xl font-semibold">{formatNumber(customersQuery.data?.newCustomers)}</p>
-              <p className="mt-1 text-sm text-[var(--muted)]">Active buyers: {formatNumber(customersQuery.data?.activeBuyersInRange)}</p>
+              <p className="mt-2 text-2xl font-semibold">{formatNumber(summary.newCustomers)}</p>
+              <p className="mt-1 text-sm text-[var(--muted)]">
+                AOV {formatCurrency(summary.averageOrderValue)}
+              </p>
             </div>
-            <div className="rounded-xl border border-[var(--line)] bg-[var(--surface)]/60 p-4">
-              <p className="text-sm text-[var(--muted)]">Total products</p>
-              <p className="mt-2 text-2xl font-semibold">{formatNumber(productsQuery.data?.totalProducts)}</p>
-              <p className="mt-1 text-sm text-[var(--muted)]">Featured: {formatNumber(productsQuery.data?.featuredProducts)}</p>
+          </div>
+
+          <div className="rounded-xl border border-[var(--line)] bg-[var(--surface)]/60 p-4">
+            <div className="mb-3 flex items-center justify-between">
+              <p className="font-semibold">Timeseries</p>
+              {query.isFetching ? (
+                <span className="text-xs text-[var(--muted)]">Updating…</span>
+              ) : null}
             </div>
-            <div className="rounded-xl border border-[var(--line)] bg-[var(--surface)]/60 p-4">
-              <p className="text-sm text-[var(--muted)]">Stock on hand</p>
-              <p className="mt-2 text-2xl font-semibold">{formatNumber(inventoryQuery.data?.stockOnHand)}</p>
-              <p className="mt-1 text-sm text-[var(--muted)]">Low stock: {formatNumber(inventoryQuery.data?.lowStockVariants)}</p>
+            <div className="h-[320px]">
+              {chartData.length === 0 ? (
+                <EmptyState
+                  title="No points in this range"
+                  description="Pick 7d / 30d / 90d or a custom range with data."
+                />
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={chartData} margin={{ top: 8, right: 8, left: 0, bottom: 8 }}>
+                    <XAxis dataKey="label" tick={{ fontSize: 12 }} />
+                    <YAxis tick={{ fontSize: 12 }} />
+                    <Tooltip
+                      formatter={(value: unknown) =>
+                        metric === 'revenue' ? formatCurrency(value) : formatNumber(value)
+                      }
+                    />
+                    <Line type="monotone" dataKey={metric} stroke="#0f6e56" dot={false} strokeWidth={2} />
+                  </LineChart>
+                </ResponsiveContainer>
+              )}
             </div>
-            <div className="rounded-xl border border-[var(--line)] bg-[var(--surface)]/60 p-4">
-              <p className="text-sm text-[var(--muted)]">Refunded amount</p>
-              <p className="mt-2 text-2xl font-semibold">{formatCurrency(revenueQuery.data?.refundedAmount)}</p>
-              <p className="mt-1 text-sm text-[var(--muted)]">AOV: {formatCurrency(revenueQuery.data?.averageOrderValue)}</p>
-            </div>
+          </div>
+
+          <div className="grid gap-3 lg:grid-cols-3">
+            <RankedList
+              title="Top products"
+              items={topProducts}
+              nameKey="title"
+              valueKey="revenue"
+              format="currency"
+            />
+            <RankedList
+              title="Top vendors"
+              items={topVendors}
+              nameKey="shopName"
+              valueKey="sales"
+              format="currency"
+            />
+            <RankedList
+              title="Top customers"
+              items={topCustomers}
+              nameKey="fullName"
+              valueKey="spent"
+              format="currency"
+            />
           </div>
         </div>
       )}

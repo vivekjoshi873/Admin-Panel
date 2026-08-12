@@ -28,6 +28,32 @@ describe('auth permission checks', () => {
     expect(useAuthStore.getState().hasPermission(['users.delete', 'roles.read'])).toBe(true);
   });
 
+  it('maps users.read to the Swagger user.view slug', () => {
+    useAuthStore.setState({
+      user: {
+        id: '1',
+        email: 'a@b.com',
+        roles: [],
+        permissions: ['user.view'],
+      },
+    });
+    expect(useAuthStore.getState().hasPermission('users.read')).toBe(true);
+    expect(useAuthStore.getState().hasPermission('user.view')).toBe(true);
+  });
+
+  it('grants every permission to super_admin', () => {
+    useAuthStore.setState({
+      user: {
+        id: '1',
+        email: 'a@b.com',
+        roles: [{ id: 'r1', name: 'Super Admin', slug: 'super_admin' }],
+        permissions: [],
+      },
+    });
+    expect(useAuthStore.getState().hasPermission('analytics.view')).toBe(true);
+    expect(useAuthStore.getState().hasPermission('role.delete')).toBe(true);
+  });
+
   it('treats admin.* as a superuser capability', () => {
     useAuthStore.setState({
       user: {

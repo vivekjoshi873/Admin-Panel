@@ -2,7 +2,11 @@ import { z } from 'zod';
 
 export const roleSchema = z.object({
   name: z.string().trim().min(1, 'Name is required'),
-  slug: z.string().trim().min(1, 'Slug is required').optional(),
+  slug: z
+    .string()
+    .trim()
+    .optional()
+    .transform((value) => (value ? value : undefined)),
   description: z.string().trim().optional(),
 });
 
@@ -20,7 +24,7 @@ export type PermissionFormValues = z.infer<typeof permissionSchema>;
 export const userCreateSchema = z.object({
   fullName: z.string().trim().min(1, 'Full name is required'),
   email: z.string().trim().email('Enter a valid email'),
-  password: z.string().min(6, 'Password must be at least 6 characters'),
+  password: z.string().min(8, 'Password must be at least 8 characters'),
   phone: z.string().trim().optional(),
   roleIds: z.array(z.string().min(1)).optional(),
 });

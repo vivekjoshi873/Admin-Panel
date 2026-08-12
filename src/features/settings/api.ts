@@ -6,6 +6,15 @@ export async function getSettingsSidebar(): Promise<any> {
 }
 
 export async function getSettingsCategories(): Promise<any[]> {
+  try {
+    const { data } = await api.get('/api/v1/admin/settings/categories/all');
+    const body = data?.data ?? data;
+    if (Array.isArray(body)) return body;
+    if (Array.isArray(body?.data)) return body.data;
+    if (Array.isArray(body?.items)) return body.items;
+  } catch {
+    // fall through to list endpoint
+  }
   const { data } = await api.get('/api/v1/admin/settings/categories');
   const body = data?.data ?? data;
   if (Array.isArray(body)) return body;

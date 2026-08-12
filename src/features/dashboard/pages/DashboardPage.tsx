@@ -3,6 +3,8 @@ import { PageHeader } from '@/shared/components/ui/PageHeader';
 import { Skeleton } from '@/shared/components/ui/Skeleton';
 import { EmptyState } from '@/shared/components/ui/EmptyState';
 import { Button } from '@/shared/components/ui/Button';
+import { ForbiddenState } from '@/shared/components/ui/ForbiddenState';
+import { isForbidden } from '@/shared/lib/permissions';
 import { getDashboard, getRecentOrdersFromAnalytics, toKpiCards } from '../api';
 
 function formatNumber(value: unknown) {
@@ -102,6 +104,8 @@ export function DashboardPage() {
       <div className="space-y-6">
         {dashboardQuery.isLoading ? (
           <KpiSkeletonGrid />
+        ) : dashboardQuery.isError && isForbidden(dashboardQuery.error) ? (
+          <ForbiddenState error={dashboardQuery.error} fallback="dashboard" />
         ) : dashboardQuery.isError ? (
           <EmptyState
             title="Could not load dashboard KPIs"
@@ -131,7 +135,11 @@ export function DashboardPage() {
               <p className="text-sm text-[var(--muted)]">Latest marketplace orders (last 30 days).</p>
             </div>
 
-            {ordersQuery.isError ? (
+            {ordersQuery.isError && isForbidden(ordersQuery.error) ? (
+              <div className="p-4">
+                <ForbiddenState error={ordersQuery.error} fallback="analytics.view" />
+              </div>
+            ) : ordersQuery.isError ? (
               <div className="p-4">
                 <EmptyState
                   title="Could not load recent orders"

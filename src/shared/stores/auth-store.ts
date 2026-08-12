@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { AuthUser } from '@/shared/types/auth';
+import { isSuperAdmin, permissionMatches } from '@/shared/lib/permissions';
 
 type AuthStatus = 'idle' | 'hydrating' | 'authenticated' | 'anonymous';
 
@@ -39,10 +40,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }),
 
   hasPermission: (permission) => {
-    const perms = get().user?.permissions ?? [];
-    if (perms.includes('*') || perms.includes('admin.*')) return true;
-    const needed = Array.isArray(permission) ? permission : [permission];
-    return needed.some((p) => perms.includes(p));
+    const user = get().user;
+    if (isSuperAdmin(user?.roles)) return true;
+    return permissionMatches(user?.permissions ?? [], permission);
   },
 }));
 

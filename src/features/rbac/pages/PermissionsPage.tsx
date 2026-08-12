@@ -4,20 +4,27 @@ import { PageHeader } from '@/shared/components/ui/PageHeader';
 import { Button } from '@/shared/components/ui/Button';
 import { EmptyState } from '@/shared/components/ui/EmptyState';
 import { Skeleton } from '@/shared/components/ui/Skeleton';
+import { ForbiddenState } from '@/shared/components/ui/ForbiddenState';
 import { PermissionFormModal } from '../components/PermissionFormModal';
 import { ConfirmDelete } from '../components/ConfirmDelete';
 import { toast } from '@/shared/stores/toast-store';
 import { getErrorMessage } from '@/shared/lib/cn';
+import { isForbidden } from '@/shared/lib/permissions';
 import { getPermissionsModules, createPermission, updatePermission, deletePermission } from '../api';
 import { useAuthStore } from '@/shared/stores/auth-store';
+
+function permissionId(p: { id?: string; uuid?: string }) {
+  return String(p.id ?? p.uuid ?? '');
+}
 
 export function PermissionsPage() {
   const queryClient = useQueryClient();
 
-  const canRead = useAuthStore((s) => s.hasPermission('permissions.read'));
-  const canCreate = useAuthStore((s) => s.hasPermission('permissions.create'));
+  const canCreate = useAuthStore((s) => s.hasPermission('permission.create'));
+  const canUpdate = useAuthStore((s) => s.hasPermission('permission.update'));
+  const canDelete = useAuthStore((s) => s.hasPermission('permission.delete'));
 
-  const { data, isLoading, isError } = useQuery({
+  const { data, isLoading, isError, error } = useQuery({
     queryKey: ['permissions', 'modules'],
     queryFn: getPermissionsModules,
   });
@@ -67,10 +74,6 @@ export function PermissionsPage() {
     onError: (err) => toast({ title: 'Delete failed', description: getErrorMessage(err), tone: 'error' }),
   });
 
-  if (!canRead) {
-    return <EmptyState title="No access" description="You don?t have permission to view permissions." />;
-  }
-
   return (
     <div>
       <PageHeader
@@ -97,6 +100,8 @@ export function PermissionsPage() {
             <Skeleton key={i} className="h-12 w-full" />
           ))}
         </div>
+      ) : isError && isForbidden(error) ? (
+        <ForbiddenState error={error} fallback="permission.view" />
       ) : isError ? (
         <EmptyState title="Could not load permissions" description="Try refreshing or check your network." />
       ) : flatPermissions.length === 0 ? (
@@ -123,7 +128,7 @@ export function PermissionsPage() {
               .sort((a, b) => String(a.module).localeCompare(String(b.module)))
               .map((p: any) => (
                 <div
-                  key={p.id ?? p.slug}
+                  key={permissionId(p) || p.slug}
                   className="grid grid-cols-1 gap-2 px-4 py-3 sm:grid-cols-[1fr_200px_160px] sm:items-center sm:gap-2"
                 >
                   <div>
@@ -135,7 +140,7 @@ export function PermissionsPage() {
                     <Button
                       size="sm"
                       variant="secondary"
-                      disabled={!useAuthStore.getState().hasPermission('permissions.update')}
+                      disabled={!canUpdate}
                       onClick={() => {
                         setMode('edit');
                         setInitial(p);
@@ -148,8 +153,8 @@ export function PermissionsPage() {
                       label="Delete"
                       title="Delete permission?"
                       description="This will remove the permission from all roles."
-                      disabled={!useAuthStore.getState().hasPermission('permissions.delete')}
-                      onConfirm={() => deleteMutation.mutateAsync(p.id)}
+                      disabled={!canDelete}
+                      onConfirm={() => deleteMutation.mutateAsync(permissionId(p))}
                     />
                   </div>
                 </div>
@@ -165,7 +170,7 @@ export function PermissionsPage() {
         onClose={() => setModalOpen(false)}
         onSubmit={(values) => {
           if (mode === 'create') return createMutation.mutateAsync(values);
-          return updateMutation.mutateAsync({ permissionId: initial.id, values });
+          return updateMutation.mutateAsync({ permissionId: permissionId(initial), values });
         }}
         isPending={createMutation.isPending || updateMutation.isPending}
       />

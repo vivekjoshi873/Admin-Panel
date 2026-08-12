@@ -4,18 +4,22 @@ import { PageHeader } from '@/shared/components/ui/PageHeader';
 import { Button } from '@/shared/components/ui/Button';
 import { EmptyState } from '@/shared/components/ui/EmptyState';
 import { Skeleton } from '@/shared/components/ui/Skeleton';
+import { ForbiddenState } from '@/shared/components/ui/ForbiddenState';
 import { Checkbox } from '@/shared/components/ui/Checkbox';
 import { toast } from '@/shared/stores/toast-store';
 import { getErrorMessage } from '@/shared/lib/cn';
+import { isForbidden } from '@/shared/lib/permissions';
 import { assignRolePermissions, getPermissionsModules, getRolePermissions, getRoles } from '../api';
 import { useAuthStore } from '@/shared/stores/auth-store';
 import { Input } from '@/shared/components/ui/Input';
 
-// Note: backend permission objects can vary slightly; we treat them as any and rely on id/slug.
+function entityId(item: { id?: string; uuid?: string }) {
+  return String(item.id ?? item.uuid ?? '');
+}
+
 export function PermissionMatrixPage() {
   const queryClient = useQueryClient();
-  const canRead = useAuthStore((s) => s.hasPermission('roles.read'));
-  const canUpdate = useAuthStore((s) => s.hasPermission('roles.update'));
+  const canUpdate = useAuthStore((s) => s.hasPermission('role.update'));
 
   const [roleId, setRoleId] = useState<string>('');
   const [search, setSearch] = useState('');
@@ -25,7 +29,7 @@ export function PermissionMatrixPage() {
 
   const permissionsModules = modulesQuery.data ?? [];
 
-  const activeRoleId = roleId || (rolesQuery.data?.[0]?.id ?? '');
+  const activeRoleId = roleId || entityId(rolesQuery.data?.[0] ?? {});
 
   // Assigned permissions for the selected role.
   const assignedQuery = useQuery({
@@ -112,8 +116,12 @@ export function PermissionMatrixPage() {
     onError: (err) => toast({ title: 'Update failed', description: getErrorMessage(err), tone: 'error' }),
   });
 
-  if (!canRead) {
-    return <EmptyState title="No access" description="You don?t have permission to view the matrix." />;
+  if (rolesQuery.isError && isForbidden(rolesQuery.error)) {
+    return <ForbiddenState error={rolesQuery.error} fallback="role.view" />;
+  }
+
+  if (modulesQuery.isError && isForbidden(modulesQuery.error)) {
+    return <ForbiddenState error={modulesQuery.error} fallback="permission.view" />;
   }
 
   if (rolesQuery.isLoading || modulesQuery.isLoading) {
@@ -157,7 +165,7 @@ export function PermissionMatrixPage() {
               }}
             >
               {rolesQuery.data.map((r: any) => (
-                <option key={r.id} value={r.id}>
+                <option key={entityId(r)} value={entityId(r)}>
                   {r.name}
                 </option>
               ))}

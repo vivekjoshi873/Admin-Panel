@@ -4,73 +4,39 @@ import { useAuthStore } from '@/shared/stores/auth-store';
 import { useLogout } from '@/features/auth/hooks';
 import { Button } from '@/shared/components/ui/Button';
 import { displayName, cn } from '@/shared/lib/cn';
-import { usePermission } from '@/shared/hooks/usePermission';
-import { useQuery } from '@tanstack/react-query';
-import { getSettingsSidebar } from '@/features/settings/api';
 
-// Fallback while the backend-provided sidebar is loading.
-// Once `/admin/settings/sidebar` is available we render that instead.
-const FALLBACK_NAV = [
-  { label: 'Dashboard', path: '/', permission: null },
-  { label: 'Analytics', path: '/analytics', permission: 'analytics.read' },
-  { label: 'Roles', path: '/rbac/roles', permission: 'roles.read' },
-  { label: 'Permissions', path: '/rbac/permissions', permission: 'permissions.read' },
-  { label: 'Permission matrix', path: '/rbac/matrix', permission: 'roles.update' },
-  { label: 'Users', path: '/rbac/users', permission: 'users.read' },
-  { label: 'Profile', path: '/profile', permission: null },
-  { label: 'Settings', path: '/settings', permission: 'settings.read' },
+const NAV = [
+  { label: 'Dashboard', path: '/' },
+  { label: 'Analytics', path: '/analytics' },
+  { label: 'Roles', path: '/rbac/roles' },
+  { label: 'Permissions', path: '/rbac/permissions' },
+  { label: 'Permission matrix', path: '/rbac/matrix' },
+  { label: 'Users', path: '/rbac/users' },
+  { label: 'Profile', path: '/profile' },
+  { label: 'Settings', path: '/settings' },
 ] as const;
 
-function SidebarNavItems({
-  items,
-  onNavigate,
-  depth = 0,
-}: {
-  items: any[];
-  onNavigate?: () => void;
-  depth?: number;
-}) {
-  const hasPermission = useAuthStore((s) => s.hasPermission);
-
+function SidebarNavItems({ onNavigate }: { onNavigate?: () => void }) {
   return (
     <nav className="flex flex-col gap-1 p-3">
-      {items.map((item) => {
-        const perm = item.permission ?? null;
-        if (perm && !hasPermission(perm)) return null;
-
-        const path = item.path ?? item.href;
-        const label = item.label ?? item.name;
-        const children = Array.isArray(item.children) ? item.children : [];
-
-        return (
-          <div key={path ?? label}>
-            {path ? (
-              <NavLink
-                to={path}
-                end={path === '/'}
-                onClick={onNavigate}
-                className={({ isActive }) =>
-                  cn(
-                    'block rounded-lg px-3 py-2 text-sm font-medium transition',
-                    depth ? 'ml-3' : null,
-                    isActive
-                      ? 'bg-[var(--accent)]/15 text-[var(--accent)]'
-                      : 'text-[var(--muted)] hover:bg-black/5 hover:text-[var(--ink)] dark:hover:bg-white/5',
-                  )
-                }
-              >
-                {label}
-              </NavLink>
-            ) : null}
-
-            {children.length ? (
-              <div className="mt-1">
-                <SidebarNavItems items={children} depth={depth + 1} onNavigate={onNavigate} />
-              </div>
-            ) : null}
-          </div>
-        );
-      })}
+      {NAV.map((item) => (
+        <NavLink
+          key={item.path}
+          to={item.path}
+          end={item.path === '/'}
+          onClick={onNavigate}
+          className={({ isActive }) =>
+            cn(
+              'block rounded-lg px-3 py-2 text-sm font-medium transition',
+              isActive
+                ? 'bg-[var(--accent)]/15 text-[var(--accent)]'
+                : 'text-[var(--muted)] hover:bg-black/5 hover:text-[var(--ink)] dark:hover:bg-white/5',
+            )
+          }
+        >
+          {item.label}
+        </NavLink>
+      ))}
     </nav>
   );
 }
@@ -84,22 +50,6 @@ export function AppShell() {
   const toggleTheme = useUiStore((s) => s.toggleTheme);
   const user = useAuthStore((s) => s.user);
   const logout = useLogout();
-  const canLogoutAll = usePermission('auth.logout-all');
-
-  const sidebarQuery = useQuery({
-    queryKey: ['admin', 'settings', 'sidebar'],
-    queryFn: getSettingsSidebar,
-    retry: false,
-    staleTime: 60_000,
-  });
-
-  const sidebarItems =
-    sidebarQuery.data?.items ??
-    sidebarQuery.data?.data?.items ??
-    sidebarQuery.data?.sidebar?.items ??
-    null;
-
-  const navItems = sidebarItems?.length ? sidebarItems : FALLBACK_NAV;
 
   return (
     <div className="min-h-screen lg:grid lg:grid-cols-[auto_1fr]">
@@ -121,13 +71,32 @@ export function AppShell() {
             onClick={toggleSidebar}
             aria-label="Toggle sidebar"
           >
-            ?
+            {collapsed ? '»' : '«'}
           </button>
         </div>
         {!collapsed ? (
-          <SidebarNavItems items={navItems as any[]} />
+          <SidebarNavItems />
         ) : (
-          <div className="p-3 text-xs text-[var(--muted)]">???</div>
+          <nav className="flex flex-col gap-1 p-2">
+            {NAV.map((item) => (
+              <NavLink
+                key={item.path}
+                to={item.path}
+                end={item.path === '/'}
+                title={item.label}
+                className={({ isActive }) =>
+                  cn(
+                    'flex h-10 items-center justify-center rounded-lg text-sm font-semibold',
+                    isActive
+                      ? 'bg-[var(--accent)]/15 text-[var(--accent)]'
+                      : 'text-[var(--muted)] hover:bg-black/5',
+                  )
+                }
+              >
+                {item.label.slice(0, 1)}
+              </NavLink>
+            ))}
+          </nav>
         )}
       </aside>
 
@@ -143,10 +112,10 @@ export function AppShell() {
             <div className="flex h-14 items-center justify-between border-b border-[var(--line)] px-4">
               <span className="font-display text-lg font-semibold">Bingo</span>
               <button type="button" onClick={() => setMobileOpen(false)}>
-                ?
+                Close
               </button>
             </div>
-            <SidebarNavItems items={navItems as any[]} onNavigate={() => setMobileOpen(false)} />
+            <SidebarNavItems onNavigate={() => setMobileOpen(false)} />
           </div>
         </div>
       ) : null}
@@ -160,7 +129,7 @@ export function AppShell() {
               onClick={() => setMobileOpen(true)}
               aria-label="Open menu"
             >
-              ?
+              Menu
             </button>
             <p className="truncate text-sm text-[var(--muted)]">{user ? displayName(user) : 'Admin'}</p>
           </div>
@@ -168,16 +137,14 @@ export function AppShell() {
             <Button variant="ghost" size="sm" onClick={toggleTheme}>
               {theme === 'dark' ? 'Light' : 'Dark'}
             </Button>
-            {canLogoutAll ? (
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => logout.mutate(true)}
-                loading={logout.isPending}
-              >
-                Logout all
-              </Button>
-            ) : null}
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => logout.mutate(true)}
+              loading={logout.isPending}
+            >
+              Logout all
+            </Button>
             <Button variant="secondary" size="sm" onClick={() => logout.mutate(false)} loading={logout.isPending}>
               Logout
             </Button>

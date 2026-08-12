@@ -6,8 +6,11 @@ import { EmptyState } from '@/shared/components/ui/EmptyState';
 import { Skeleton } from '@/shared/components/ui/Skeleton';
 import { Input } from '@/shared/components/ui/Input';
 import { Button } from '@/shared/components/ui/Button';
+import { ForbiddenState } from '@/shared/components/ui/ForbiddenState';
 import { toast } from '@/shared/stores/toast-store';
 import { getErrorMessage } from '@/shared/lib/cn';
+import { isForbidden } from '@/shared/lib/permissions';
+import { useAuthStore } from '@/shared/stores/auth-store';
 import { getSettingsGroup, updateSettingsGroup } from '../api';
 
 function inferType(key: string, value: unknown): 'text' | 'number' | 'boolean' | 'password' {
@@ -20,6 +23,7 @@ function inferType(key: string, value: unknown): 'text' | 'number' | 'boolean' |
 export function SettingsGroupPage() {
   const { slug = '' } = useParams();
   const queryClient = useQueryClient();
+  const canManage = useAuthStore((s) => s.hasPermission('settings.manage'));
 
   const q = useQuery({
     queryKey: ['admin', 'settings', 'group', slug],
@@ -59,6 +63,8 @@ export function SettingsGroupPage() {
             <Skeleton key={i} className="h-12 w-full" />
           ))}
         </div>
+      ) : q.isError && isForbidden(q.error) ? (
+        <ForbiddenState error={q.error} fallback="settings.view" />
       ) : q.isError ? (
         <EmptyState title="Could not load settings" description="Try refreshing." />
       ) : entries.length === 0 ? (
@@ -107,7 +113,7 @@ export function SettingsGroupPage() {
             <Button variant="ghost" onClick={() => setDraft(values)} disabled={updateMutation.isPending}>
               Reset
             </Button>
-            <Button loading={updateMutation.isPending} onClick={() => void updateMutation.mutateAsync()}>
+            <Button loading={updateMutation.isPending} disabled={!canManage} onClick={() => void updateMutation.mutateAsync()}>
               Save changes
             </Button>
           </div>

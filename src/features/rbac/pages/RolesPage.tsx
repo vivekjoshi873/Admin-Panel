@@ -4,19 +4,26 @@ import { PageHeader } from '@/shared/components/ui/PageHeader';
 import { Button } from '@/shared/components/ui/Button';
 import { EmptyState } from '@/shared/components/ui/EmptyState';
 import { Skeleton } from '@/shared/components/ui/Skeleton';
+import { ForbiddenState } from '@/shared/components/ui/ForbiddenState';
 import { RoleFormModal } from '../components/RoleFormModal';
 import { ConfirmDelete } from '../components/ConfirmDelete';
 import { toast } from '@/shared/stores/toast-store';
 import { getErrorMessage } from '@/shared/lib/cn';
+import { isForbidden } from '@/shared/lib/permissions';
 import { getRoles, createRole, updateRole, deleteRole } from '../api';
 import { useAuthStore } from '@/shared/stores/auth-store';
 
+function roleId(r: { id?: string; uuid?: string }) {
+  return String(r.id ?? r.uuid ?? '');
+}
+
 export function RolesPage() {
   const queryClient = useQueryClient();
-  const canRead = useAuthStore((s) => s.hasPermission('roles.read'));
-  const canCreate = useAuthStore((s) => s.hasPermission('roles.create'));
+  const canCreate = useAuthStore((s) => s.hasPermission('role.create'));
+  const canUpdate = useAuthStore((s) => s.hasPermission('role.update'));
+  const canDelete = useAuthStore((s) => s.hasPermission('role.delete'));
 
-  const { data: roles, isLoading, isError } = useQuery({
+  const { data: roles, isLoading, isError, error } = useQuery({
     queryKey: ['roles', 'list'],
     queryFn: getRoles,
   });
@@ -56,8 +63,9 @@ export function RolesPage() {
 
   const selectedSubmit = (values: any) => {
     if (mode === 'create') return createMutation.mutateAsync(values);
-    if (!initial?.id) return;
-    return updateMutation.mutateAsync({ roleId: initial.id, values });
+    const id = roleId(initial);
+    if (!id) return;
+    return updateMutation.mutateAsync({ roleId: id, values });
   };
 
   const sortedRoles = useMemo(() => {
@@ -65,12 +73,6 @@ export function RolesPage() {
       ? [...roles].sort((a: any, b: any) => String(a.name ?? '').localeCompare(String(b.name ?? '')))
       : [];
   }, [roles]);
-
-  if (!canRead) {
-    return (
-      <EmptyState title="No access" description="You don?t have permission to view roles." />
-    );
-  }
 
   return (
     <div>
@@ -96,6 +98,8 @@ export function RolesPage() {
             <Skeleton key={i} className="h-12 w-full" />
           ))}
         </div>
+      ) : isError && isForbidden(error) ? (
+        <ForbiddenState error={error} fallback="role.view" />
       ) : isError ? (
         <EmptyState title="Could not load roles" description="Try refreshing or check your network." />
       ) : sortedRoles.length === 0 ? (
@@ -115,7 +119,7 @@ export function RolesPage() {
           <div className="divide-y divide-[var(--line)]">
             {sortedRoles.map((r: any) => (
               <div
-                key={r.id}
+                key={roleId(r) || r.slug}
                 className="grid grid-cols-1 gap-2 px-4 py-3 sm:grid-cols-[1fr_180px_160px] sm:items-center sm:gap-2"
               >
                 <div>
@@ -128,7 +132,7 @@ export function RolesPage() {
                     size="sm"
                     variant="secondary"
                     loading={updateMutation.isPending}
-                    disabled={!useAuthStore.getState().hasPermission('roles.update')}
+                    disabled={!canUpdate}
                     onClick={() => {
                       setMode('edit');
                       setInitial(r);
@@ -142,9 +146,9 @@ export function RolesPage() {
                     label="Delete"
                     title="Delete role?"
                     description="This will remove the role from the system."
-                    disabled={!useAuthStore.getState().hasPermission('roles.delete')}
+                    disabled={!canDelete}
                     dangerLabel="Delete"
-                    onConfirm={() => deleteMutation.mutateAsync(r.id)}
+                    onConfirm={() => deleteMutation.mutateAsync(roleId(r))}
                   />
                 </div>
               </div>

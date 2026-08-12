@@ -1,3 +1,4 @@
+import axios from 'axios';
 import { api } from '@/shared/api/client';
 import { extractAuthTokens } from '@/shared/lib/auth-tokens';
 import type {
@@ -49,6 +50,24 @@ export const authApi = {
     };
   },
 
+  /** Login on a raw client so a wrong password does not clear the current session. */
+  async verifyPassword(payload: LoginPayload): Promise<LoginResponse> {
+    const rawBase = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '') ?? '';
+    const baseURL = import.meta.env.DEV ? '' : rawBase;
+    const { data } = await axios.post(`${baseURL}/api/v1/auth/login`, payload, {
+      withCredentials: true,
+      headers: { 'Content-Type': 'application/json' },
+    });
+    const tokens = extractAuthTokens(data);
+    const body = (data?.data ?? data) as Record<string, unknown>;
+    const userRaw = (body?.user ?? (data as { user?: unknown })?.user) as AuthUser | undefined;
+    return {
+      accessToken: tokens.accessToken ?? '',
+      refreshToken: tokens.refreshToken,
+      user: userRaw ? unwrapUser(userRaw) : undefined,
+    };
+  },
+
   async profile(): Promise<AuthUser> {
     const { data } = await api.get('/api/v1/auth/profile');
     return unwrapUser(data);
@@ -72,8 +91,11 @@ export const authApi = {
     return data?.data ?? data;
   },
 
-  async setPassword(input: { token: string; password: string }): Promise<MessageResponse> {
-    const { data } = await api.post('/api/v1/auth/set-password', input);
+  async setPassword(input: { password: string; token?: string }): Promise<MessageResponse> {
+    const body = input.token
+      ? { token: input.token, password: input.password }
+      : { password: input.password };
+    const { data } = await api.post('/api/v1/auth/set-password', body);
     return data?.data ?? data;
   },
 };

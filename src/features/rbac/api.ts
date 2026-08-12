@@ -42,11 +42,29 @@ export async function deleteRole(roleId: string): Promise<void> {
   await api.delete(`/api/v1/roles/${roleId}`);
 }
 
+function groupPermissions(list: any[]): PermissionModuleGroup[] {
+  const grouped = new Map<string, any[]>();
+  for (const p of list) {
+    const module = String(p.module ?? 'general');
+    if (!grouped.has(module)) grouped.set(module, []);
+    grouped.get(module)!.push(p);
+  }
+  return Array.from(grouped.entries()).map(([module, permissions]) => ({ module, permissions }));
+}
+
 export async function getPermissionsModules(): Promise<PermissionModuleGroup[]> {
-  const { data } = await api.get('/api/v1/permissions/modules');
-  const body = data?.data ?? data;
-  // expected: [{ module, permissions: Permission[] }]
-  return body ?? [];
+  try {
+    const { data } = await api.get('/api/v1/permissions/modules');
+    const body = data?.data ?? data;
+    if (Array.isArray(body) && body[0]?.permissions) return body as PermissionModuleGroup[];
+    if (Array.isArray(body?.modules)) return body.modules as PermissionModuleGroup[];
+    if (Array.isArray(body) && body[0]?.slug) return groupPermissions(body);
+  } catch {
+    // fall through to flat list
+  }
+
+  const { data } = await api.get('/api/v1/permissions');
+  return groupPermissions(unwrapList<any>(data));
 }
 
 export async function createPermission(payload: CreatePermissionPayload): Promise<any> {

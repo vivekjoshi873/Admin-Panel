@@ -42,6 +42,7 @@ export type AdminUser = {
 export type CreateUserPayload = {
   email: string;
   password: string;
+  fullName?: string;
   firstName?: string;
   lastName?: string;
   phone?: string;
@@ -50,6 +51,7 @@ export type CreateUserPayload = {
 
 export type UpdateUserPayload = {
   email?: string;
+  fullName?: string;
   firstName?: string;
   lastName?: string;
   phone?: string;
