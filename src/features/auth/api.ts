@@ -12,11 +12,31 @@ import { flattenRoles } from '@/shared/lib/roles';
 export function unwrapUser(payload: unknown): AuthUser {
   const raw = payload as Record<string, unknown>;
   const nested = (raw?.data as Record<string, unknown> | undefined) ?? raw;
-  const user = (nested?.user ?? nested) as AuthUser;
+  const nestedUser =
+    nested?.user && typeof nested.user === 'object'
+      ? (nested.user as Record<string, unknown>)
+      : null;
+
+  // Prefer the object that actually carries identity fields (email / uuid).
+  // Some envelopes include an empty `user` key that would otherwise win via `??`.
+  const source =
+    nestedUser && (nestedUser.email || nestedUser.uuid || nestedUser.id)
+      ? nestedUser
+      : nested;
+
+  const user = source as AuthUser;
   const roles = flattenRoles(user.roles);
+  const email = String(
+    (source as { email?: unknown }).email ??
+      (source as { userEmail?: unknown }).userEmail ??
+      (nested as { email?: unknown })?.email ??
+      '',
+  );
+
   return {
     ...user,
     id: String((user as { id?: string; uuid?: string }).id ?? (user as { uuid?: string }).uuid ?? ''),
+    email,
     roles,
     permissions: normalizePermissions({ ...user, roles }),
   };

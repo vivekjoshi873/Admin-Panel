@@ -5,10 +5,11 @@ import { AuthLayout } from '../components/AuthLayout';
 import { loginSchema, type LoginFormValues } from '../schemas';
 import { useLogin } from '../hooks';
 import { Input } from '@/shared/components/ui/Input';
-import { Button } from '@/shared/components/ui/Button';
 import { Skeleton } from '@/shared/components/ui/Skeleton';
+import { ShimmerButton } from '@/shared/components/magicui/ShimmerButton';
 import { useAuthStore } from '@/shared/stores/auth-store';
 import { getErrorMessage } from '@/shared/lib/cn';
+import { Loader2 } from 'lucide-react';
 
 export function LoginPage() {
   const status = useAuthStore((s) => s.status);
@@ -42,7 +43,7 @@ export function LoginPage() {
   }
 
   return (
-    <AuthLayout title="Sign in" subtitle="Use your email and password to continue.">
+    <AuthLayout title="Sign in" subtitle="Use your email and password to continue to the admin workspace.">
       <form
         className="space-y-4"
         onSubmit={handleSubmit((values) => login.mutate(values))}
@@ -64,24 +65,25 @@ export function LoginPage() {
         />
 
         {login.isError ? (
-          <p className="rounded-lg border border-[var(--danger)]/30 bg-red-50 px-3 py-2 text-sm text-[var(--danger)] dark:bg-red-950/30">
+          <p className="rounded-xl border border-[var(--danger)]/30 bg-red-50 px-3 py-2 text-sm text-[var(--danger)] dark:bg-red-950/30">
             {getErrorMessage(login.error, 'Invalid email or password')}
           </p>
         ) : null}
 
         <div className="flex items-center justify-end text-sm">
-          <Link to="/forgot-password" className="text-[var(--accent)] hover:underline">
+          <Link to="/forgot-password" className="font-medium text-[var(--accent)] hover:underline">
             Forgot password?
           </Link>
         </div>
 
-        <Button type="submit" className="w-full" loading={login.isPending}>
+        <ShimmerButton type="submit" disabled={login.isPending}>
+          {login.isPending ? <Loader2 className="size-4 animate-spin" /> : null}
           Sign in
-        </Button>
+        </ShimmerButton>
 
         <p className="text-center text-sm text-[var(--muted)]">
           New here?{' '}
-          <Link to="/register" className="text-[var(--accent)] hover:underline">
+          <Link to="/register" className="font-medium text-[var(--accent)] hover:underline">
             Create an account
           </Link>
         </p>

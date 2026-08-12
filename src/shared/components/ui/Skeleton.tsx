@@ -1,35 +1,12 @@
-import type { CSSProperties } from 'react';
 import { cn } from '@/shared/lib/cn';
 
-export function Skeleton({
-  className,
-  style,
-}: {
-  className?: string;
-  style?: CSSProperties;
-}) {
+export function Skeleton({ className }: { className?: string }) {
   return (
     <div
       className={cn(
-        'animate-pulse rounded-md bg-stone-300/70 dark:bg-stone-700/60',
+        'animate-pulse rounded-lg bg-gradient-to-r from-black/[0.06] via-black/[0.1] to-black/[0.06] dark:from-white/[0.06] dark:via-white/[0.1] dark:to-white/[0.06]',
         className,
       )}
-      style={style}
-      aria-hidden
     />
-  );
-}
-
-export function SkeletonText({ lines = 3 }: { lines?: number }) {
-  return (
-    <div className="space-y-2">
-      {Array.from({ length: lines }).map((_, i) => (
-        <Skeleton
-          key={i}
-          className="h-3"
-          style={{ width: i === lines - 1 ? '66%' : '100%' }}
-        />
-      ))}
-    </div>
   );
 }

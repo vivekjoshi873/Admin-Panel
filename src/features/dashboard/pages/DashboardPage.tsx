@@ -1,8 +1,10 @@
+import { TrendingUp } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { PageHeader } from '@/shared/components/ui/PageHeader';
 import { Skeleton } from '@/shared/components/ui/Skeleton';
 import { EmptyState } from '@/shared/components/ui/EmptyState';
 import { Button } from '@/shared/components/ui/Button';
+import { Card } from '@/shared/components/ui/Card';
 import { ForbiddenState } from '@/shared/components/ui/ForbiddenState';
 import { isForbidden } from '@/shared/lib/permissions';
 import { useAuthStore } from '@/shared/stores/auth-store';
@@ -26,10 +28,15 @@ function formatMoney(value: unknown) {
 
 function KpiCard({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-xl border border-[var(--line)] bg-[var(--surface)]/60 p-4">
-      <p className="text-sm text-[var(--muted)]">{label}</p>
-      <p className="mt-2 text-2xl font-semibold tracking-tight">{formatNumber(value)}</p>
-    </div>
+    <Card className="group transition hover:-translate-y-0.5 hover:shadow-[0_16px_40px_rgb(20_24_22_/_0.08)]">
+      <div className="flex items-start justify-between gap-3">
+        <p className="text-sm font-medium text-[var(--muted)]">{label}</p>
+        <span className="rounded-lg bg-[var(--accent-soft)] p-1.5 text-[var(--accent)]">
+          <TrendingUp className="size-3.5" />
+        </span>
+      </div>
+      <p className="mt-3 font-display text-3xl font-semibold tracking-tight">{formatNumber(value)}</p>
+    </Card>
   );
 }
 
@@ -37,10 +44,10 @@ function KpiSkeletonGrid() {
   return (
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
       {Array.from({ length: 4 }).map((_, i) => (
-        <div key={i} className="rounded-xl border border-[var(--line)] bg-[var(--surface)]/60 p-4">
+        <Card key={i}>
           <Skeleton className="h-4 w-28" />
           <Skeleton className="mt-3 h-9 w-20" />
-        </div>
+        </Card>
       ))}
     </div>
   );
@@ -48,7 +55,7 @@ function KpiSkeletonGrid() {
 
 function OrdersSkeleton() {
   return (
-    <div className="overflow-hidden rounded-xl border border-[var(--line)] bg-[var(--surface)]/60">
+    <Card className="overflow-hidden p-0">
       <div className="border-b border-[var(--line)] px-4 py-3">
         <Skeleton className="h-5 w-36" />
         <Skeleton className="mt-2 h-3 w-56" />
@@ -62,7 +69,7 @@ function OrdersSkeleton() {
           </div>
         ))}
       </div>
-    </div>
+    </Card>
   );
 }
 
@@ -133,9 +140,9 @@ export function DashboardPage() {
         {ordersQuery.isLoading ? (
           <OrdersSkeleton />
         ) : (
-          <div className="overflow-hidden rounded-xl border border-[var(--line)] bg-[var(--surface)]/60">
-            <div className="border-b border-[var(--line)] px-4 py-3">
-              <p className="font-semibold">Recent orders</p>
+          <div className="overflow-hidden rounded-2xl border border-[var(--line)] bg-[var(--surface)]/75 shadow-[0_10px_30px_rgb(20_24_22_/_0.04)] backdrop-blur">
+            <div className="border-b border-[var(--line)] px-4 py-4">
+              <p className="font-semibold tracking-tight">Recent orders</p>
               <p className="text-sm text-[var(--muted)]">Latest marketplace orders (last 30 days).</p>
             </div>
 

@@ -13,7 +13,12 @@ import { getErrorMessage } from '@/shared/lib/cn';
 import { authApi } from '@/features/auth/api';
 import { updateUser } from '@/features/rbac/api';
 import { queryKeys } from '@/shared/lib/query-keys';
-import { stashAccessToken, stashRefreshToken, useAuthStore } from '@/shared/stores/auth-store';
+import {
+  readStashedAccessToken,
+  stashAccessToken,
+  stashRefreshToken,
+  useAuthStore,
+} from '@/shared/stores/auth-store';
 import type { AuthUser } from '@/shared/types/auth';
 
 const profileSchema = z.object({
@@ -35,10 +40,29 @@ const passwordSchema = z
 type ProfileValues = z.infer<typeof profileSchema>;
 type PasswordValues = z.infer<typeof passwordSchema>;
 
+function emailFromJwt(token: string | null | undefined): string | null {
+  if (!token) return null;
+  try {
+    const part = token.split('.')[1];
+    if (!part) return null;
+    const json = JSON.parse(atob(part.replace(/-/g, '+').replace(/_/g, '/')));
+    const email = json?.email ?? json?.userEmail ?? json?.preferred_username;
+    return typeof email === 'string' && email.includes('@') ? email : null;
+  } catch {
+    return null;
+  }
+}
+
+function resolveEmail(user?: AuthUser | null, accessToken?: string | null): string | null {
+  if (user?.email?.trim()) return user.email.trim();
+  return emailFromJwt(accessToken ?? useAuthStore.getState().accessToken ?? readStashedAccessToken());
+}
+
 export function ProfilePage() {
   const queryClient = useQueryClient();
   const setUser = useAuthStore((s) => s.setUser);
   const sessionUser = useAuthStore((s) => s.user);
+  const accessToken = useAuthStore((s) => s.accessToken);
 
   const profileQuery = useQuery({
     queryKey: queryKeys.auth.profile,
@@ -46,6 +70,7 @@ export function ProfilePage() {
   });
 
   const user = profileQuery.data ?? sessionUser;
+  const email = resolveEmail(user, accessToken) ?? '';
 
   const profileForm = useForm<ProfileValues>({
     resolver: zodResolver(profileSchema),
@@ -91,16 +116,25 @@ export function ProfilePage() {
 
   const changePassword = useMutation({
     mutationFn: async (values: PasswordValues) => {
-      if (!user?.email) throw new Error('No email on profile');
-      const verified = await authApi.verifyPassword({
-        email: user.email,
-        password: values.currentPassword,
-      });
-      if (verified.accessToken) {
-        useAuthStore.getState().setSession(verified.accessToken);
-        stashAccessToken(verified.accessToken);
+      // Confirm current password when we know the account email; otherwise
+      // fall through to authenticated set-password (Bearer already on the client).
+      const accountEmail = resolveEmail(user, accessToken);
+      if (accountEmail) {
+        try {
+          const verified = await authApi.verifyPassword({
+            email: accountEmail,
+            password: values.currentPassword,
+          });
+          if (verified.accessToken) {
+            useAuthStore.getState().setSession(verified.accessToken);
+            stashAccessToken(verified.accessToken);
+          }
+          if (verified.refreshToken) stashRefreshToken(verified.refreshToken);
+        } catch {
+          throw new Error('Current password is incorrect');
+        }
       }
-      if (verified.refreshToken) stashRefreshToken(verified.refreshToken);
+
       return authApi.setPassword({ password: values.password });
     },
     onSuccess: () => {
@@ -117,7 +151,10 @@ export function ProfilePage() {
 
   return (
     <div>
-      <PageHeader title="Profile" description="View and edit your account. Password change confirms the current password first." />
+      <PageHeader
+        title="Profile"
+        description="View and edit your account. Password change uses your current password when possible."
+      />
 
       {profileQuery.isLoading && !user ? (
         <div className="space-y-4">
@@ -131,11 +168,11 @@ export function ProfilePage() {
       ) : (
         <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
           <form
-            className="space-y-4 rounded-xl border border-[var(--line)] bg-[var(--surface)]/60 p-5"
+            className="space-y-4 rounded-2xl border border-[var(--line)] bg-[var(--surface)]/75 p-5"
             onSubmit={profileForm.handleSubmit((values) => saveProfile.mutate(values))}
           >
             <p className="font-semibold">Account</p>
-            <Input label="Email" value={user.email} disabled />
+            <Input label="Email" value={email || '—'} disabled />
             <Input
               label="Full name"
               error={profileForm.formState.errors.fullName?.message}
@@ -153,7 +190,7 @@ export function ProfilePage() {
           </form>
 
           <form
-            className="space-y-4 rounded-xl border border-[var(--line)] bg-[var(--surface)]/60 p-5"
+            className="space-y-4 rounded-2xl border border-[var(--line)] bg-[var(--surface)]/75 p-5"
             onSubmit={passwordForm.handleSubmit((values) => changePassword.mutate(values))}
           >
             <p className="font-semibold">Change password</p>

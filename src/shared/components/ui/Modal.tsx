@@ -1,5 +1,6 @@
-import { useEffect } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
+import { X } from 'lucide-react';
 import { cn } from '@/shared/lib/cn';
 import { Button } from './Button';
 
@@ -8,8 +9,8 @@ type ModalProps = {
   title: string;
   description?: string;
   onClose: () => void;
-  children: React.ReactNode;
-  footer?: React.ReactNode;
+  children: ReactNode;
+  footer?: ReactNode;
   size?: 'md' | 'lg' | 'xl';
 };
 
@@ -48,7 +49,7 @@ export function Modal({
     <div className="fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4">
       <button
         type="button"
-        className="absolute inset-0 bg-stone-950/45 backdrop-blur-[2px]"
+        className="absolute inset-0 bg-stone-950/50 backdrop-blur-sm"
         aria-label="Close dialog"
         onClick={onClose}
       />
@@ -57,13 +58,13 @@ export function Modal({
         aria-modal="true"
         aria-labelledby="modal-title"
         className={cn(
-          'relative z-10 flex max-h-[92vh] w-full flex-col overflow-hidden rounded-t-2xl border border-[var(--line)] bg-[var(--surface)] shadow-xl sm:rounded-2xl',
+          'relative z-10 flex max-h-[92vh] w-full flex-col overflow-hidden rounded-t-3xl border border-[var(--line)] bg-[var(--surface)] shadow-2xl sm:rounded-3xl',
           sizeClass[size],
         )}
       >
         <div className="flex items-start justify-between gap-4 border-b border-[var(--line)] px-5 py-4">
           <div>
-            <h2 id="modal-title" className="text-lg font-semibold tracking-tight">
+            <h2 id="modal-title" className="font-display text-xl font-semibold tracking-tight">
               {title}
             </h2>
             {description ? (
@@ -71,7 +72,7 @@ export function Modal({
             ) : null}
           </div>
           <Button variant="ghost" size="sm" onClick={onClose} aria-label="Close">
-            ✕
+            <X className="size-4" />
           </Button>
         </div>
         <div className="overflow-y-auto px-5 py-4">{children}</div>

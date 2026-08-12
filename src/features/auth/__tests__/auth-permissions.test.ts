@@ -119,4 +119,16 @@ describe('unwrapUser profile envelope', () => {
     expect(isSuperAdmin(user.roles)).toBe(true);
     expect(user.roles[0]?.slug).toBe('super_admin');
   });
+
+  it('still finds email when data.user is an empty object', () => {
+    const user = unwrapUser({
+      data: {
+        email: 'fallback@bingo.dev',
+        user: {},
+        roles: [],
+        permissions: [],
+      },
+    });
+    expect(user.email).toBe('fallback@bingo.dev');
+  });
 });
