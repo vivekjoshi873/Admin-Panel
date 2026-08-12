@@ -251,7 +251,7 @@ export function AppShell() {
               size="sm"
               onClick={() => logout.mutate(true)}
               loading={logout.isPending}
-              className="hidden md:inline-flex"
+              className="hidden md:inline-flex cursor-pointer" 
             >
               Logout all
             </Button>
@@ -260,6 +260,7 @@ export function AppShell() {
               size="sm"
               onClick={() => logout.mutate(false)}
               loading={logout.isPending}
+              className='cursor-pointer'
             >
               <LogOut className="size-4" />
               <span className="hidden sm:inline">Logout</span>

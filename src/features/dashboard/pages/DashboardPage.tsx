@@ -102,6 +102,7 @@ export function DashboardPage() {
         description="Marketplace overview — users, vendors, products, and recent orders."
         actions={
           <Button
+          className='cursor-pointer'
             variant="secondary"
             size="sm"
             onClick={refresh}

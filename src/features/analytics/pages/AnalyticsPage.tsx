@@ -131,12 +131,13 @@ export function AnalyticsPage() {
 
       <div className="mb-4 flex min-h-[52px] flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
         <div className="flex flex-wrap gap-2">
-          {(['today', 'yesterday', '7d', '30d', '90d', '12m', 'all'] as PeriodKey[]).map((k) => (
+          {(['Today', 'Yesterday', '7d', '30d', '90d', '12m', 'All'] as PeriodKey[]).map((k) => (
             <Button
               key={k}
               size="sm"
               variant={period === k ? 'primary' : 'secondary'}
               onClick={() => setPeriod(k)}
+              className='cursor-pointer'
             >
               {k}
             </Button>
@@ -145,6 +146,7 @@ export function AnalyticsPage() {
             size="sm"
             variant={period === 'custom' ? 'primary' : 'secondary'}
             onClick={() => setPeriod('custom')}
+            className='cursor-pointer'
           >
             Custom
           </Button>
@@ -172,6 +174,7 @@ export function AnalyticsPage() {
             size="sm"
             variant={metric === 'orders' ? 'primary' : 'secondary'}
             onClick={() => setMetric('orders')}
+            className='cursor-pointer'
           >
             Orders
           </Button>
@@ -179,6 +182,7 @@ export function AnalyticsPage() {
             size="sm"
             variant={metric === 'revenue' ? 'primary' : 'secondary'}
             onClick={() => setMetric('revenue')}
+            className='cursor-pointer'
           >
             Revenue
           </Button>
