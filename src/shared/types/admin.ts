@@ -20,7 +20,15 @@ export type DashboardResponse = {
   recentOrders: RecentOrder[];
 };
 
-export type AnalyticsPeriod = '7d' | '30d' | '90d' | 'custom';
+export type AnalyticsPeriod =
+  | 'today'
+  | 'yesterday'
+  | '7d'
+  | '30d'
+  | '90d'
+  | '12m'
+  | 'all'
+  | 'custom';
 
 export type TimeseriesPoint = {
   date: string;

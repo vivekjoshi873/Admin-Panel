@@ -41,6 +41,19 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
 ) {
   const Comp = asChild ? Slot : 'button';
 
+  // Slot (asChild) requires exactly one element child — never inject Loader beside it.
+  if (asChild) {
+    return (
+      <Comp
+        ref={ref}
+        className={cn(buttonVariants({ variant, size }), className)}
+        {...props}
+      >
+        {children}
+      </Comp>
+    );
+  }
+
   return (
     <Comp
       ref={ref}

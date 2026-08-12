@@ -131,4 +131,28 @@ describe('unwrapUser profile envelope', () => {
     });
     expect(user.email).toBe('fallback@bingo.dev');
   });
+
+  it('keeps analytics.view when permissions are nested under roles before flatten', () => {
+    const user = unwrapUser({
+      data: {
+        id: '2',
+        email: 'ops@bingo.dev',
+        roles: [
+          {
+            roleId: '3',
+            role: {
+              id: '3',
+              name: 'Ops',
+              slug: 'ops',
+              permissions: [{ slug: 'analytics.view' }, { slug: 'user.view' }],
+            },
+          },
+        ],
+        permissions: [],
+      },
+    });
+
+    expect(user.permissions).toEqual(expect.arrayContaining(['analytics.view', 'user.view']));
+    expect(user.roles[0]?.slug).toBe('ops');
+  });
 });

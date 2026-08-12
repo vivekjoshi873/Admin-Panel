@@ -25,7 +25,8 @@ export function unwrapUser(payload: unknown): AuthUser {
       : nested;
 
   const user = source as AuthUser;
-  const roles = flattenRoles(user.roles);
+  const rawRoles = (source as { roles?: unknown }).roles;
+  const roles = flattenRoles(rawRoles);
   const email = String(
     (source as { email?: unknown }).email ??
       (source as { userEmail?: unknown }).userEmail ??
@@ -38,24 +39,53 @@ export function unwrapUser(payload: unknown): AuthUser {
     id: String((user as { id?: string; uuid?: string }).id ?? (user as { uuid?: string }).uuid ?? ''),
     email,
     roles,
-    permissions: normalizePermissions({ ...user, roles }),
+    // Collect slugs from top-level permissions AND raw role joins (before flatten strips them).
+    permissions: collectPermissionSlugs(
+      (source as { permissions?: unknown }).permissions,
+      rawRoles,
+    ),
   };
 }
 
-function normalizePermissions(user: AuthUser): string[] {
-  if (Array.isArray(user.permissions) && user.permissions.length) {
-    return user.permissions
-      .map((p) => (typeof p === 'string' ? p : ((p as { slug?: string }).slug ?? '')))
-      .filter(Boolean);
+function permissionSlug(entry: unknown): string {
+  if (entry == null) return '';
+  if (typeof entry === 'string') return entry;
+  if (typeof entry === 'number') return String(entry);
+  const row = entry as {
+    slug?: string;
+    permission?: { slug?: string };
+    name?: string;
+  };
+  return String(row.slug ?? row.permission?.slug ?? '').trim();
+}
+
+/** Merge direct permission list with permissions nested under role / role.permissions. */
+export function collectPermissionSlugs(direct: unknown, rolesRaw: unknown): string[] {
+  const slugs = new Set<string>();
+
+  if (Array.isArray(direct)) {
+    for (const p of direct) {
+      const slug = permissionSlug(p);
+      if (slug) slugs.add(slug);
+    }
   }
 
-  const fromRoles =
-    user.roles?.flatMap((role) => {
-      const withPerms = role as { permissions?: Array<string | { slug: string }> };
-      return (withPerms.permissions ?? []).map((p) => (typeof p === 'string' ? p : p.slug));
-    }) ?? [];
+  if (Array.isArray(rolesRaw)) {
+    for (const entry of rolesRaw) {
+      const row = entry as {
+        permissions?: unknown;
+        role?: { permissions?: unknown };
+      };
+      const nested = row.role?.permissions ?? row.permissions;
+      if (!Array.isArray(nested)) continue;
+      for (const p of nested) {
+        const slug = permissionSlug(p);
+        if (slug) slugs.add(slug);
+      }
+    }
+  }
 
-  return [...new Set(fromRoles.filter(Boolean))];
+  return [...slugs];
 }
 
 /** Normalize login / verify-otp payloads into one shape. */

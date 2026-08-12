@@ -1,4 +1,5 @@
 import { TrendingUp } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { PageHeader } from '@/shared/components/ui/PageHeader';
 import { Skeleton } from '@/shared/components/ui/Skeleton';
@@ -7,6 +8,7 @@ import { Button } from '@/shared/components/ui/Button';
 import { Card } from '@/shared/components/ui/Card';
 import { ForbiddenState } from '@/shared/components/ui/ForbiddenState';
 import { isForbidden } from '@/shared/lib/permissions';
+import { queryKeys } from '@/shared/lib/query-keys';
 import { useAuthStore } from '@/shared/stores/auth-store';
 import { getDashboard, getRecentOrdersFromAnalytics, toKpiCards } from '../api';
 
@@ -77,13 +79,13 @@ export function DashboardPage() {
   const canViewAnalytics = useAuthStore((s) => s.hasPermission('analytics.view'));
 
   const dashboardQuery = useQuery({
-    queryKey: ['admin', 'dashboard'],
+    queryKey: queryKeys.dashboard.root,
     queryFn: getDashboard,
   });
 
   const ordersQuery = useQuery({
     queryKey: ['admin', 'analytics', 'recent-orders'],
-    queryFn: getRecentOrdersFromAnalytics,
+    queryFn: () => getRecentOrdersFromAnalytics('30d'),
     enabled: canViewAnalytics,
   });
 
@@ -92,7 +94,7 @@ export function DashboardPage() {
 
   const refresh = () => {
     void dashboardQuery.refetch();
-    void ordersQuery.refetch();
+    if (canViewAnalytics) void ordersQuery.refetch();
   };
 
   return (
@@ -102,7 +104,7 @@ export function DashboardPage() {
         description="Marketplace overview — users, vendors, products, and recent orders."
         actions={
           <Button
-          className='cursor-pointer'
+            className="cursor-pointer"
             variant="secondary"
             size="sm"
             onClick={refresh}
@@ -138,7 +140,25 @@ export function DashboardPage() {
           </div>
         )}
 
-        {ordersQuery.isLoading ? (
+        {!canViewAnalytics ? (
+          <Card>
+            <p className="font-semibold tracking-tight">Recent orders</p>
+            <p className="mt-2 text-sm text-[var(--muted)]">
+              This section loads from{' '}
+              <code className="font-mono text-xs">GET /admin/analytics</code> and needs{' '}
+              <code className="font-mono text-xs">analytics.view</code>. Assign it to your role,
+              then sign out and back in.
+            </p>
+            <div className="mt-4">
+              <Link
+                to="/rbac/matrix"
+                className="inline-flex h-8 items-center rounded-lg border border-[var(--line)] bg-[var(--surface)] px-3 text-xs font-semibold transition hover:bg-black/[0.03] dark:hover:bg-white/[0.04]"
+              >
+                Open permission matrix
+              </Link>
+            </div>
+          </Card>
+        ) : ordersQuery.isLoading ? (
           <OrdersSkeleton />
         ) : (
           <div className="overflow-hidden rounded-2xl border border-[var(--line)] bg-[var(--surface)]/75 shadow-[0_10px_30px_rgb(20_24_22_/_0.04)] backdrop-blur">
@@ -147,11 +167,7 @@ export function DashboardPage() {
               <p className="text-sm text-[var(--muted)]">Latest marketplace orders (last 30 days).</p>
             </div>
 
-            {!canViewAnalytics ? (
-              <div className="p-4">
-                <ForbiddenState fallback="analytics.view" />
-              </div>
-            ) : ordersQuery.isError && isForbidden(ordersQuery.error) ? (
+            {ordersQuery.isError && isForbidden(ordersQuery.error) ? (
               <div className="p-4">
                 <ForbiddenState error={ordersQuery.error} fallback="analytics.view" />
               </div>
@@ -173,7 +189,6 @@ export function DashboardPage() {
               </div>
             ) : (
               <>
-                {/* Desktop table */}
                 <div className="hidden sm:block">
                   <div className="grid grid-cols-[1fr_160px_140px_140px] gap-2 bg-[var(--surface)] px-4 py-2 text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">
                     <span>Order</span>
@@ -205,7 +220,6 @@ export function DashboardPage() {
                   </div>
                 </div>
 
-                {/* Mobile cards */}
                 <div className="divide-y divide-[var(--line)] sm:hidden">
                   {recentOrders.slice(0, 10).map((o: any) => (
                     <div key={o.uuid ?? o.id ?? o.orderNumber} className="space-y-1 px-4 py-3">

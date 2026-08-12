@@ -75,13 +75,6 @@ export async function getDashboard(): Promise<DashboardStats> {
 
 /**
  * Dashboard endpoint has no recent-orders list.
- * Analytics overview includes `recentOrders`, so we pull that for the table.
+ * Analytics overview includes `recentOrders` (requires `analytics.view`).
  */
-export async function getRecentOrdersFromAnalytics(): Promise<any[]> {
-  const { data } = await api.get('/api/v1/admin/analytics', {
-    params: { period: '30d' },
-  });
-  const body = data?.data ?? data;
-  const list = body?.recentOrders ?? body?.data?.recentOrders ?? [];
-  return Array.isArray(list) ? list : [];
-}
+export { getRecentOrders as getRecentOrdersFromAnalytics } from '@/features/analytics/api';

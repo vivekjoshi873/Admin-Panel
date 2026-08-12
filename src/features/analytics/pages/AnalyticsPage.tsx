@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { PageHeader } from '@/shared/components/ui/PageHeader';
@@ -7,10 +8,28 @@ import { EmptyState } from '@/shared/components/ui/EmptyState';
 import { Button } from '@/shared/components/ui/Button';
 import { ForbiddenState } from '@/shared/components/ui/ForbiddenState';
 import { isForbidden } from '@/shared/lib/permissions';
+import { queryKeys } from '@/shared/lib/query-keys';
 import { useAuthStore } from '@/shared/stores/auth-store';
-import { getAnalyticsSnapshot } from '../api';
+import {
+  type AnalyticsPeriod,
+  getAnalyticsCustomers,
+  getAnalyticsInventory,
+  getAnalyticsProducts,
+  getAnalyticsSnapshot,
+  getAnalyticsTimeseries,
+} from '../api';
 
-type PeriodKey = 'today' | 'yesterday' | '7d' | '30d' | '90d' | '12m' | 'all' | 'custom';
+type PeriodKey = AnalyticsPeriod | 'custom';
+
+const PERIOD_OPTIONS: { value: AnalyticsPeriod; label: string }[] = [
+  { value: 'today', label: 'Today' },
+  { value: 'yesterday', label: 'Yesterday' },
+  { value: '7d', label: '7d' },
+  { value: '30d', label: '30d' },
+  { value: '90d', label: '90d' },
+  { value: '12m', label: '12m' },
+  { value: 'all', label: 'All' },
+];
 
 function formatCurrency(value: unknown) {
   const n = Number(value);
@@ -84,7 +103,26 @@ function RankedList({
   );
 }
 
+function StatCard({
+  label,
+  value,
+  hint,
+}: {
+  label: string;
+  value: string;
+  hint?: string;
+}) {
+  return (
+    <div className="rounded-xl border border-[var(--line)] bg-[var(--surface)]/60 p-4">
+      <p className="text-sm text-[var(--muted)]">{label}</p>
+      <p className="mt-2 text-2xl font-semibold">{value}</p>
+      {hint ? <p className="mt-1 text-sm text-[var(--muted)]">{hint}</p> : null}
+    </div>
+  );
+}
+
 export function AnalyticsPage() {
+  const navigate = useNavigate();
   const canView = useAuthStore((s) => s.hasPermission('analytics.view'));
   const [period, setPeriod] = useState<PeriodKey>('30d');
   const [customStart, setCustomStart] = useState('');
@@ -96,31 +134,79 @@ export function AnalyticsPage() {
       return {
         startDate: customStart || undefined,
         endDate: customEnd || undefined,
-        groupBy: 'day',
+        groupBy: 'day' as const,
       };
     }
-    return { period, groupBy: 'day' };
+    return { period, groupBy: 'day' as const };
   }, [period, customStart, customEnd]);
 
-  const query = useQuery({
-    queryKey: ['admin', 'analytics', params],
+  const snapshotQuery = useQuery({
+    queryKey: queryKeys.analytics.root(params),
     queryFn: () => getAnalyticsSnapshot(params),
     enabled: canView,
     placeholderData: (prev) => prev,
   });
 
-  const snapshot = query.data ?? {};
-  const timeseries = Array.isArray(snapshot.timeseries) ? snapshot.timeseries : [];
-  const chartData = timeseries.map((p: any) => ({
-    label: p.date,
-    orders: p.orders,
-    revenue: p.revenue,
-  }));
+  const timeseriesQuery = useQuery({
+    queryKey: queryKeys.analytics.timeseries(params),
+    queryFn: () => getAnalyticsTimeseries(params),
+    enabled: canView,
+    placeholderData: (prev) => prev,
+  });
 
+  const inventoryQuery = useQuery({
+    queryKey: queryKeys.analytics.inventory,
+    queryFn: getAnalyticsInventory,
+    enabled: canView,
+  });
+
+  const productsQuery = useQuery({
+    queryKey: queryKeys.analytics.products,
+    queryFn: getAnalyticsProducts,
+    enabled: canView,
+  });
+
+  const customersQuery = useQuery({
+    queryKey: queryKeys.analytics.customers(params),
+    queryFn: () => getAnalyticsCustomers(params),
+    enabled: canView,
+  });
+
+  const snapshot = snapshotQuery.data ?? {};
   const summary = snapshot.summary ?? {};
   const topProducts = snapshot.topProducts ?? [];
   const topVendors = snapshot.vendors ?? snapshot.topVendors ?? [];
   const topCustomers = snapshot.topCustomers ?? [];
+
+  const timeseriesRaw =
+    (Array.isArray(snapshot.timeseries) && snapshot.timeseries.length
+      ? snapshot.timeseries
+      : null) ??
+    (Array.isArray(timeseriesQuery.data?.timeseries)
+      ? timeseriesQuery.data.timeseries
+      : Array.isArray(timeseriesQuery.data)
+        ? timeseriesQuery.data
+        : []);
+
+  const chartData = timeseriesRaw.map((p: any) => ({
+    label: p.date ?? p.label,
+    orders: p.orders ?? p.value,
+    revenue: p.revenue ?? p.grossRevenue ?? p.value,
+  }));
+
+  const inventory = inventoryQuery.data ?? {};
+  const products = productsQuery.data ?? {};
+  const customers = customersQuery.data ?? {};
+
+  const isLoading =
+    snapshotQuery.isLoading && !snapshotQuery.data && timeseriesQuery.isLoading && !timeseriesQuery.data;
+
+  const isForbiddenError =
+    (snapshotQuery.isError && isForbidden(snapshotQuery.error)) ||
+    (timeseriesQuery.isError && isForbidden(timeseriesQuery.error));
+
+  const hardError =
+    snapshotQuery.isError && !isForbidden(snapshotQuery.error) && !snapshotQuery.data;
 
   return (
     <div>
@@ -131,22 +217,22 @@ export function AnalyticsPage() {
 
       <div className="mb-4 flex min-h-[52px] flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
         <div className="flex flex-wrap gap-2">
-          {(['Today', 'Yesterday', '7d', '30d', '90d', '12m', 'All'] as PeriodKey[]).map((k) => (
+          {PERIOD_OPTIONS.map((opt) => (
             <Button
-              key={k}
+              key={opt.value}
               size="sm"
-              variant={period === k ? 'primary' : 'secondary'}
-              onClick={() => setPeriod(k)}
-              className='cursor-pointer'
+              variant={period === opt.value ? 'primary' : 'secondary'}
+              onClick={() => setPeriod(opt.value)}
+              className="cursor-pointer"
             >
-              {k}
+              {opt.label}
             </Button>
           ))}
           <Button
             size="sm"
             variant={period === 'custom' ? 'primary' : 'secondary'}
             onClick={() => setPeriod('custom')}
-            className='cursor-pointer'
+            className="cursor-pointer"
           >
             Custom
           </Button>
@@ -174,7 +260,7 @@ export function AnalyticsPage() {
             size="sm"
             variant={metric === 'orders' ? 'primary' : 'secondary'}
             onClick={() => setMetric('orders')}
-            className='cursor-pointer'
+            className="cursor-pointer"
           >
             Orders
           </Button>
@@ -182,7 +268,7 @@ export function AnalyticsPage() {
             size="sm"
             variant={metric === 'revenue' ? 'primary' : 'secondary'}
             onClick={() => setMetric('revenue')}
-            className='cursor-pointer'
+            className="cursor-pointer"
           >
             Revenue
           </Button>
@@ -190,8 +276,13 @@ export function AnalyticsPage() {
       </div>
 
       {!canView ? (
-        <ForbiddenState fallback="analytics.view" />
-      ) : query.isLoading && !query.data ? (
+        <EmptyState
+          title="Analytics permission required"
+          description="Your role needs analytics.view. Open Permission matrix, enable it on your role, then sign out and back in."
+          actionLabel="Open permission matrix"
+          onAction={() => navigate('/rbac/matrix')}
+        />
+      ) : isLoading ? (
         <div className="space-y-6">
           <div className="grid gap-3 sm:grid-cols-3">
             {Array.from({ length: 3 }).map((_, i) => (
@@ -205,40 +296,55 @@ export function AnalyticsPage() {
             ))}
           </div>
         </div>
-      ) : query.isError && isForbidden(query.error) ? (
-        <ForbiddenState error={query.error} fallback="analytics.view" />
-      ) : query.isError ? (
+      ) : isForbiddenError ? (
+        <ForbiddenState
+          error={snapshotQuery.error ?? timeseriesQuery.error}
+          fallback="analytics.view"
+        />
+      ) : hardError ? (
         <EmptyState title="Could not load analytics" description="Try another period or refresh." />
       ) : (
         <div className="space-y-6" style={{ minHeight: 640 }}>
           <div className="grid gap-3 sm:grid-cols-3">
-            <div className="rounded-xl border border-[var(--line)] bg-[var(--surface)]/60 p-4">
-              <p className="text-sm text-[var(--muted)]">New orders</p>
-              <p className="mt-2 text-2xl font-semibold">{formatNumber(summary.newOrders)}</p>
-              <p className="mt-1 text-sm text-[var(--muted)]">
-                Growth {formatNumber(summary.ordersGrowthPct)}%
-              </p>
-            </div>
-            <div className="rounded-xl border border-[var(--line)] bg-[var(--surface)]/60 p-4">
-              <p className="text-sm text-[var(--muted)]">Revenue</p>
-              <p className="mt-2 text-2xl font-semibold">{formatCurrency(summary.revenue)}</p>
-              <p className="mt-1 text-sm text-[var(--muted)]">
-                Growth {formatNumber(summary.revenueGrowthPct)}%
-              </p>
-            </div>
-            <div className="rounded-xl border border-[var(--line)] bg-[var(--surface)]/60 p-4">
-              <p className="text-sm text-[var(--muted)]">New customers</p>
-              <p className="mt-2 text-2xl font-semibold">{formatNumber(summary.newCustomers)}</p>
-              <p className="mt-1 text-sm text-[var(--muted)]">
-                AOV {formatCurrency(summary.averageOrderValue)}
-              </p>
-            </div>
+            <StatCard
+              label="New orders"
+              value={formatNumber(summary.newOrders ?? customers.newOrders)}
+              hint={`Growth ${formatNumber(summary.ordersGrowthPct)}%`}
+            />
+            <StatCard
+              label="Revenue"
+              value={formatCurrency(summary.revenue)}
+              hint={`Growth ${formatNumber(summary.revenueGrowthPct)}%`}
+            />
+            <StatCard
+              label="New customers"
+              value={formatNumber(summary.newCustomers ?? customers.newCustomers)}
+              hint={`AOV ${formatCurrency(summary.averageOrderValue)}`}
+            />
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-3">
+            <StatCard
+              label="Catalogue"
+              value={formatNumber(products.total ?? products.totalProducts ?? summary.totalProducts)}
+              hint={`Published ${formatNumber(products.published ?? products.publishedCount)}`}
+            />
+            <StatCard
+              label="In stock"
+              value={formatNumber(inventory.inStock ?? inventory.inStockVariants)}
+              hint={`Low ${formatNumber(inventory.lowStock ?? inventory.lowStockVariants)} · Out ${formatNumber(inventory.outOfStock ?? inventory.outOfStockVariants)}`}
+            />
+            <StatCard
+              label="Buyers in range"
+              value={formatNumber(customers.uniqueBuyers ?? customers.totalCustomers ?? summary.uniqueBuyers)}
+              hint={`Base ${formatNumber(customers.totalCustomers)}`}
+            />
           </div>
 
           <div className="rounded-xl border border-[var(--line)] bg-[var(--surface)]/60 p-4">
             <div className="mb-3 flex items-center justify-between">
               <p className="font-semibold">Timeseries</p>
-              {query.isFetching ? (
+              {snapshotQuery.isFetching || timeseriesQuery.isFetching ? (
                 <span className="text-xs text-[var(--muted)]">Updating…</span>
               ) : null}
             </div>
@@ -258,7 +364,13 @@ export function AnalyticsPage() {
                         metric === 'revenue' ? formatCurrency(value) : formatNumber(value)
                       }
                     />
-                    <Line type="monotone" dataKey={metric} stroke="#0f6e56" dot={false} strokeWidth={2} />
+                    <Line
+                      type="monotone"
+                      dataKey={metric}
+                      stroke="#0f6e56"
+                      dot={false}
+                      strokeWidth={2}
+                    />
                   </LineChart>
                 </ResponsiveContainer>
               )}
@@ -288,6 +400,14 @@ export function AnalyticsPage() {
               format="currency"
             />
           </div>
+
+          <p className="text-xs text-[var(--muted)]">
+            Need access? Assign <code className="font-mono">analytics.view</code> in{' '}
+            <Link to="/rbac/matrix" className="underline">
+              Permission matrix
+            </Link>
+            .
+          </p>
         </div>
       )}
     </div>
