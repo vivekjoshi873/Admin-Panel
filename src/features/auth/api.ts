@@ -127,7 +127,7 @@ export const authApi = {
   /** Login on a raw client so a wrong password does not clear the current session. */
   async verifyPassword(payload: LoginPayload): Promise<LoginResponse> {
     const rawBase = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '') ?? '';
-    const baseURL = import.meta.env.DEV ? '' : rawBase;
+    const baseURL = import.meta.env.VITE_API_DIRECT === 'true' ? rawBase : '';
     const { data } = await axios.post(`${baseURL}/api/v1/auth/login`, payload, {
       withCredentials: true,
       headers: { 'Content-Type': 'application/json' },

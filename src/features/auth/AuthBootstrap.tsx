@@ -37,9 +37,9 @@ async function tryRefresh(): Promise<string | null> {
   const refreshToken = readStashedRefreshToken();
   if (!refreshToken) return null;
 
-  // Match `shared/api/client.ts`: proxy in dev, absolute API host in production (Vercel).
+  // Match `shared/api/client.ts`: same-origin `/api` via Vite/Vercel proxy.
   const rawBase = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '') ?? '';
-  const baseURL = import.meta.env.DEV ? '' : rawBase;
+  const baseURL = import.meta.env.VITE_API_DIRECT === 'true' ? rawBase : '';
 
   try {
     const { data } = await axios.post(

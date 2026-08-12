@@ -15,8 +15,12 @@ import { extractAuthTokens } from '@/shared/lib/auth-tokens';
 
 const rawBase = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '') ?? '';
 
-// In dev we hit the Vite proxy (`/api/...`) so cookies + CORS behave predictably.
-const baseURL = import.meta.env.DEV ? '' : rawBase;
+// Always call same-origin `/api/...`:
+// - local: Vite proxy → API
+// - Vercel: vercel.json rewrite → API
+// Set VITE_API_DIRECT=true only if you must hit the API host from the browser.
+const baseURL =
+  import.meta.env.VITE_API_DIRECT === 'true' ? rawBase : '';
 
 export const api: AxiosInstance = axios.create({
   baseURL,
