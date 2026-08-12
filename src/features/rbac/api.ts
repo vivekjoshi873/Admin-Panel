@@ -10,6 +10,7 @@ import type {
   UpdateRolePayload,
   UpdateUserPayload,
 } from '@/shared/types/rbac';
+import { extractPermissionIds, extractRoleIds, toApiIds } from '@/shared/lib/roles';
 
 function unwrap<T>(payload: any): T {
   return (payload?.data ?? payload) as T;
@@ -83,21 +84,16 @@ export async function deletePermission(permissionId: string): Promise<void> {
 
 export async function getRolePermissions(roleId: string): Promise<string[]> {
   const { data } = await api.get(`/api/v1/roles/${roleId}/permissions`);
-  const body = data?.data ?? data;
-  // Some backends return permissionIds; others return permission objects.
-  if (Array.isArray(body)) return body as string[];
-  if (Array.isArray(body?.permissionIds)) return body.permissionIds as string[];
-  if (Array.isArray(body?.permissions)) {
-    return body.permissions.map((p: any) => (typeof p === 'string' ? p : p.id ?? p.permissionId ?? p.slug));
-  }
-  return [];
+  return extractPermissionIds(data);
 }
 
 export async function assignRolePermissions(
   roleId: string,
   payload: AssignRolePermissionsPayload,
 ): Promise<void> {
-  await api.post(`/api/v1/roles/${roleId}/permissions`, payload);
+  await api.post(`/api/v1/roles/${roleId}/permissions`, {
+    permissionIds: toApiIds(payload.permissionIds),
+  });
 }
 
 export async function listUsers(params?: {
@@ -106,12 +102,18 @@ export async function listUsers(params?: {
   search?: string;
   status?: string;
 }): Promise<any> {
-  const { data } = await api.get('/api/v1/users', { params });
+  // Swagger only documents `status`. Extra paging/search params are handled in the UI.
+  const { data } = await api.get('/api/v1/users', {
+    params: params?.status ? { status: params.status } : undefined,
+  });
   return data?.data ?? data;
 }
 
 export async function createUser(payload: CreateUserPayload): Promise<any> {
-  const { data } = await api.post('/api/v1/users', payload);
+  const { data } = await api.post('/api/v1/users', {
+    ...payload,
+    roleIds: payload.roleIds ? toApiIds(payload.roleIds) : undefined,
+  });
   return unwrap<any>(data);
 }
 
@@ -126,14 +128,21 @@ export async function deleteUser(userId: string): Promise<void> {
 
 export async function getUserRoles(userId: string): Promise<string[]> {
   const { data } = await api.get(`/api/v1/users/${userId}/roles`);
-  const body = data?.data ?? data;
-  if (Array.isArray(body)) return body as string[];
-  if (Array.isArray(body?.roleIds)) return body.roleIds as string[];
-  if (Array.isArray(body?.roles)) return body.roles.map((r: any) => r.id ?? r.roleId ?? r.slug);
-  return [];
+  return extractRoleIds(data);
 }
 
 export async function assignUserRoles(userId: string, payload: AssignUserRolesPayload): Promise<void> {
-  await api.post(`/api/v1/users/${userId}/roles`, payload);
+  const roleIds = toApiIds(payload.roleIds);
+  try {
+    await api.post(`/api/v1/users/${userId}/roles`, { roleIds });
+  } catch (error) {
+    const status = (error as { response?: { status?: number } })?.response?.status;
+    // AssignRoleDto is undocumented; UpdateUserDto explicitly accepts roleIds.
+    if (status === 400 || status === 404) {
+      await api.patch(`/api/v1/users/${userId}`, { roleIds });
+      return;
+    }
+    throw error;
+  }
 }
 

@@ -5,6 +5,7 @@ import { EmptyState } from '@/shared/components/ui/EmptyState';
 import { Button } from '@/shared/components/ui/Button';
 import { ForbiddenState } from '@/shared/components/ui/ForbiddenState';
 import { isForbidden } from '@/shared/lib/permissions';
+import { useAuthStore } from '@/shared/stores/auth-store';
 import { getDashboard, getRecentOrdersFromAnalytics, toKpiCards } from '../api';
 
 function formatNumber(value: unknown) {
@@ -66,6 +67,8 @@ function OrdersSkeleton() {
 }
 
 export function DashboardPage() {
+  const canViewAnalytics = useAuthStore((s) => s.hasPermission('analytics.view'));
+
   const dashboardQuery = useQuery({
     queryKey: ['admin', 'dashboard'],
     queryFn: getDashboard,
@@ -74,6 +77,7 @@ export function DashboardPage() {
   const ordersQuery = useQuery({
     queryKey: ['admin', 'analytics', 'recent-orders'],
     queryFn: getRecentOrdersFromAnalytics,
+    enabled: canViewAnalytics,
   });
 
   const kpis = toKpiCards(dashboardQuery.data);
@@ -135,7 +139,11 @@ export function DashboardPage() {
               <p className="text-sm text-[var(--muted)]">Latest marketplace orders (last 30 days).</p>
             </div>
 
-            {ordersQuery.isError && isForbidden(ordersQuery.error) ? (
+            {!canViewAnalytics ? (
+              <div className="p-4">
+                <ForbiddenState fallback="analytics.view" />
+              </div>
+            ) : ordersQuery.isError && isForbidden(ordersQuery.error) ? (
               <div className="p-4">
                 <ForbiddenState error={ordersQuery.error} fallback="analytics.view" />
               </div>

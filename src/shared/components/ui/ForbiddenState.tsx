@@ -12,7 +12,7 @@ export function ForbiddenState({
   return (
     <EmptyState
       title="Missing permission"
-      description={`${message}. This is an API RBAC check — a customer account from /auth/register cannot access admin modules. Use a super_admin test user if the assignment provides one.`}
+      description={`${message}. Assign a role that includes this permission from Users → Roles, then sign in again.`}
     />
   );
 }

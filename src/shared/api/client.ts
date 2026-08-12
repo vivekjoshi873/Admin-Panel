@@ -62,12 +62,15 @@ function isAuthRefreshUrl(url?: string) {
 
 async function requestSilentRefresh(): Promise<string> {
   const stashed = readStashedRefreshToken();
+  // RefreshTokenDto requires refreshToken — an empty body is a 400, not a cookie refresh.
+  if (!stashed) {
+    throw new Error('No refresh token');
+  }
 
   // Dedicated axios call (not `api`) so a 401 here does not re-enter the interceptor.
-  // Send body token when we have one; otherwise rely on httpOnly cookie via withCredentials.
   const { data } = await axios.post(
     `${baseURL}/api/v1/auth/refresh`,
-    stashed ? { refreshToken: stashed } : {},
+    { refreshToken: stashed },
     {
       withCredentials: true,
       headers: { 'Content-Type': 'application/json' },

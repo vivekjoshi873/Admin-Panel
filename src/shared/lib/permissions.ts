@@ -40,10 +40,12 @@ export function permissionMatches(owned: string[], needed: string | string[]): b
   });
 }
 
-export function isSuperAdmin(roles?: Array<{ slug?: string; name?: string }>): boolean {
+export function isSuperAdmin(
+  roles?: Array<{ slug?: string; name?: string; role?: { slug?: string; name?: string } }>,
+): boolean {
   return (roles ?? []).some((r) => {
-    const slug = (r.slug ?? '').toLowerCase();
-    const name = (r.name ?? '').toLowerCase().replace(/\s+/g, '_');
+    const slug = (r.slug ?? r.role?.slug ?? '').toLowerCase();
+    const name = (r.name ?? r.role?.name ?? '').toLowerCase().replace(/\s+/g, '_');
     return slug === 'super_admin' || name === 'super_admin';
   });
 }

@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { useAuthStore } from '@/shared/stores/auth-store';
 import { __refreshInternals } from '@/shared/api/client';
+import { unwrapUser } from '../api';
+import { isSuperAdmin } from '@/shared/lib/permissions';
 
 describe('auth permission checks', () => {
   beforeEach(() => {
@@ -75,5 +77,46 @@ describe('refresh queue internals', () => {
   it('starts with an empty queue and idle refresh flag', () => {
     expect(__refreshInternals.isRefreshing).toBe(false);
     expect(__refreshInternals.queueLength).toBe(0);
+  });
+});
+
+describe('unwrapUser profile envelope', () => {
+  it('reads nested data.roles[].role and does not treat a customer as super admin', () => {
+    const user = unwrapUser({
+      message: 'Profile fetched successfully',
+      data: {
+        id: '109',
+        email: 'vivekjo.dev@gmail.com',
+        roles: [
+          {
+            id: '123',
+            roleId: '11',
+            role: { id: '11', name: 'CUSTOMER', slug: 'customer' },
+          },
+        ],
+        permissions: ['customer.profile.view', 'customer.order.view'],
+      },
+      roles: [],
+      permissions: [],
+    });
+
+    expect(user.email).toBe('vivekjo.dev@gmail.com');
+    expect(user.roles).toEqual([{ id: '11', name: 'CUSTOMER', slug: 'customer' }]);
+    expect(user.permissions).toEqual(['customer.profile.view', 'customer.order.view']);
+    expect(isSuperAdmin(user.roles)).toBe(false);
+  });
+
+  it('detects super_admin when the role is nested under roles[].role', () => {
+    const user = unwrapUser({
+      data: {
+        id: '1',
+        email: 'admin@example.com',
+        roles: [{ role: { id: '1', name: 'Super Admin', slug: 'super_admin' } }],
+        permissions: ['analytics.view'],
+      },
+    });
+
+    expect(isSuperAdmin(user.roles)).toBe(true);
+    expect(user.roles[0]?.slug).toBe('super_admin');
   });
 });

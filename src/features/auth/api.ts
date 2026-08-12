@@ -7,15 +7,17 @@ import type {
   LoginResponse,
   MessageResponse,
 } from '@/shared/types/auth';
+import { flattenRoles } from '@/shared/lib/roles';
 
-function unwrapUser(payload: unknown): AuthUser {
+export function unwrapUser(payload: unknown): AuthUser {
   const raw = payload as Record<string, unknown>;
   const nested = (raw?.data as Record<string, unknown> | undefined) ?? raw;
   const user = (nested?.user ?? nested) as AuthUser;
+  const roles = flattenRoles(user.roles);
   return {
     ...user,
-    roles: user.roles ?? [],
-    permissions: normalizePermissions(user),
+    roles,
+    permissions: normalizePermissions({ ...user, roles }),
   };
 }
 

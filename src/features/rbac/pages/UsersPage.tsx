@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { PageHeader } from '@/shared/components/ui/PageHeader';
 import { Button } from '@/shared/components/ui/Button';
@@ -8,7 +8,10 @@ import { ForbiddenState } from '@/shared/components/ui/ForbiddenState';
 import { toast } from '@/shared/stores/toast-store';
 import { getErrorMessage } from '@/shared/lib/cn';
 import { isForbidden } from '@/shared/lib/permissions';
+import { flattenRoles } from '@/shared/lib/roles';
+import { queryKeys } from '@/shared/lib/query-keys';
 import { useDebounce } from '@/shared/hooks/useDebounce';
+import { authApi } from '@/features/auth/api';
 import {
   getRoles,
   listUsers,
@@ -44,8 +47,8 @@ export function UsersPage() {
   }, [debouncedSearch]);
 
   const usersQuery = useQuery({
-    queryKey: ['users', { page, limit, search: debouncedSearch }],
-    queryFn: () => listUsers({ page, limit, search: debouncedSearch || undefined }),
+    queryKey: ['users', 'list'],
+    queryFn: () => listUsers(),
   });
 
   const rolesQuery = useQuery({ queryKey: ['roles', 'list'], queryFn: getRoles });
@@ -101,10 +104,22 @@ export function UsersPage() {
   const rolesMutation = useMutation({
     mutationFn: async (payload: { userId: string; roleIds: string[] }) =>
       assignUserRoles(payload.userId, { roleIds: payload.roleIds }),
-    onSuccess: async () => {
+    onSuccess: async (_data, payload) => {
       toast({ title: 'Roles updated', tone: 'success' });
       setRolesModalOpen(false);
       await queryClient.invalidateQueries({ queryKey: ['users'] });
+
+      const me = useAuthStore.getState().user;
+      const myId = String(me?.id ?? (me as { uuid?: string } | null)?.uuid ?? '');
+      if (myId && myId === payload.userId) {
+        try {
+          const profile = await authApi.profile();
+          useAuthStore.getState().setUser(profile);
+          queryClient.setQueryData(queryKeys.auth.profile, profile);
+        } catch {
+          // Role write succeeded; profile hydrate can retry on next load.
+        }
+      }
     },
     onError: (err) => toast({ title: 'Update failed', description: getErrorMessage(err), tone: 'error' }),
   });
@@ -119,11 +134,24 @@ export function UsersPage() {
   });
 
   const usersBody = usersQuery.data ?? {};
-  const users = Array.isArray(usersBody)
+  const allUsers = Array.isArray(usersBody)
     ? usersBody
     : Array.isArray(usersBody?.data)
       ? usersBody.data
       : (usersBody?.items ?? []);
+
+  const filteredUsers = useMemo(() => {
+    const q = debouncedSearch.trim().toLowerCase();
+    if (!q) return allUsers;
+    return allUsers.filter((u: any) => {
+      const name = String(u.fullName ?? u.name ?? '').toLowerCase();
+      const email = String(u.email ?? '').toLowerCase();
+      return name.includes(q) || email.includes(q);
+    });
+  }, [allUsers, debouncedSearch]);
+
+  const users = filteredUsers.slice((page - 1) * limit, page * limit);
+  const canGoNext = page * limit < filteredUsers.length;
 
   return (
     <div>
@@ -160,7 +188,7 @@ export function UsersPage() {
           <Button variant="secondary" size="sm" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>
             Prev
           </Button>
-          <Button variant="secondary" size="sm" disabled={users.length < limit} onClick={() => setPage((p) => p + 1)}>
+          <Button variant="secondary" size="sm" disabled={!canGoNext} onClick={() => setPage((p) => p + 1)}>
             Next
           </Button>
         </div>
@@ -193,9 +221,10 @@ export function UsersPage() {
         />
       ) : (
         <div className="overflow-hidden rounded-xl border border-[var(--line)] bg-[var(--surface)]/60">
-          <div className="hidden sm:grid sm:grid-cols-[1fr_160px_260px] sm:gap-2 sm:bg-[var(--surface)] sm:px-4 sm:py-3">
+          <div className="hidden sm:grid sm:grid-cols-[1fr_160px_1fr_260px] sm:gap-2 sm:bg-[var(--surface)] sm:px-4 sm:py-3">
             <div className="text-sm font-semibold">User</div>
             <div className="text-sm font-semibold">Status</div>
+            <div className="text-sm font-semibold">Roles</div>
             <div className="text-sm font-semibold text-right">Actions</div>
           </div>
           <div className="divide-y divide-[var(--line)]">
@@ -203,16 +232,19 @@ export function UsersPage() {
               const fullName = u.fullName ?? u.name ?? u.email;
               const status = u.status ?? (u.isActive ? 'ACTIVE' : 'INACTIVE');
               const id = userId(u);
+              const roleLabel =
+                flattenRoles(u.roles).map((r) => r.name || r.slug).filter(Boolean).join(', ') || 'No role';
               return (
                 <div
                   key={id || u.email}
-                  className="grid grid-cols-1 gap-2 px-4 py-3 sm:grid-cols-[1fr_160px_260px] sm:items-center sm:gap-2"
+                  className="grid grid-cols-1 gap-2 px-4 py-3 sm:grid-cols-[1fr_160px_1fr_260px] sm:items-center sm:gap-2"
                 >
                   <div>
                     <p className="font-medium">{fullName}</p>
                     <p className="mt-0.5 text-xs text-[var(--muted)]">{u.email ?? '-'}</p>
                   </div>
                   <div className="text-sm text-[var(--muted)]">{status}</div>
+                  <div className="text-sm text-[var(--muted)]">{roleLabel}</div>
                   <div className="flex flex-wrap items-center justify-between gap-2 sm:justify-end">
                     <Button
                       size="sm"

@@ -6,6 +6,7 @@ import { loginSchema, type LoginFormValues } from '../schemas';
 import { useLogin } from '../hooks';
 import { Input } from '@/shared/components/ui/Input';
 import { Button } from '@/shared/components/ui/Button';
+import { Skeleton } from '@/shared/components/ui/Skeleton';
 import { useAuthStore } from '@/shared/stores/auth-store';
 import { getErrorMessage } from '@/shared/lib/cn';
 
@@ -22,6 +23,18 @@ export function LoginPage() {
     resolver: zodResolver(loginSchema),
     defaultValues: { email: '', password: '' },
   });
+
+  if (status === 'idle' || status === 'hydrating') {
+    return (
+      <div className="flex min-h-screen items-center justify-center p-6">
+        <div className="w-full max-w-sm space-y-3">
+          <Skeleton className="h-8 w-40" />
+          <Skeleton className="h-24 w-full" />
+          <Skeleton className="h-10 w-full" />
+        </div>
+      </div>
+    );
+  }
 
   if (status === 'authenticated') {
     const from = (location.state as { from?: string } | null)?.from ?? '/';

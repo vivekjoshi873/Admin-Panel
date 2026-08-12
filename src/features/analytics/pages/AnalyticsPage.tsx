@@ -7,6 +7,7 @@ import { EmptyState } from '@/shared/components/ui/EmptyState';
 import { Button } from '@/shared/components/ui/Button';
 import { ForbiddenState } from '@/shared/components/ui/ForbiddenState';
 import { isForbidden } from '@/shared/lib/permissions';
+import { useAuthStore } from '@/shared/stores/auth-store';
 import { getAnalyticsSnapshot } from '../api';
 
 type PeriodKey = 'today' | 'yesterday' | '7d' | '30d' | '90d' | '12m' | 'all' | 'custom';
@@ -84,6 +85,7 @@ function RankedList({
 }
 
 export function AnalyticsPage() {
+  const canView = useAuthStore((s) => s.hasPermission('analytics.view'));
   const [period, setPeriod] = useState<PeriodKey>('30d');
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
@@ -103,6 +105,7 @@ export function AnalyticsPage() {
   const query = useQuery({
     queryKey: ['admin', 'analytics', params],
     queryFn: () => getAnalyticsSnapshot(params),
+    enabled: canView,
     placeholderData: (prev) => prev,
   });
 
@@ -182,7 +185,9 @@ export function AnalyticsPage() {
         </div>
       </div>
 
-      {query.isLoading && !query.data ? (
+      {!canView ? (
+        <ForbiddenState fallback="analytics.view" />
+      ) : query.isLoading && !query.data ? (
         <div className="space-y-6">
           <div className="grid gap-3 sm:grid-cols-3">
             {Array.from({ length: 3 }).map((_, i) => (

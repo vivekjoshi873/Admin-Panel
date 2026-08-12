@@ -5,11 +5,8 @@ import { authApi } from '@/features/auth/api';
 import { queryKeys } from '@/shared/lib/query-keys';
 import { extractAuthTokens } from '@/shared/lib/auth-tokens';
 import {
-  clearStashedAccessToken,
-  clearStashedRefreshToken,
   readStashedAccessToken,
   readStashedRefreshToken,
-  stashAccessToken,
   stashRefreshToken,
   useAuthStore,
 } from '@/shared/stores/auth-store';
@@ -25,78 +22,103 @@ export function resetAuthBootstrap() {
   bootPromise = null;
 }
 
-async function restoreWithAccessToken(
-  accessToken: string,
-  queryClient: ReturnType<typeof useQueryClient>,
-) {
-  useAuthStore.getState().setSession(accessToken);
-  const profile = await authApi.profile();
-  useAuthStore.getState().setUser(profile);
-  useAuthStore.getState().setStatus('authenticated');
-  queryClient.setQueryData(queryKeys.auth.profile, profile);
-  stashAccessToken(accessToken);
+function httpStatus(error: unknown): number | undefined {
+  return (error as { response?: { status?: number } })?.response?.status;
 }
 
-async function bootSession(queryClient: ReturnType<typeof useQueryClient>) {
-  const store = useAuthStore.getState();
-  store.setStatus('hydrating');
+async function hydrateProfile(queryClient: ReturnType<typeof useQueryClient>) {
+  const profile = await authApi.profile();
+  useAuthStore.getState().setUser(profile);
+  queryClient.setQueryData(queryKeys.auth.profile, profile);
+}
+
+/** The API's RefreshTokenDto requires `refreshToken` in the body — never POST `{}`. */
+async function tryRefresh(): Promise<string | null> {
+  const refreshToken = readStashedRefreshToken();
+  if (!refreshToken) return null;
 
   try {
-    // Soft navigation within the SPA may already have an access token.
-    if (store.accessToken) {
-      await restoreWithAccessToken(store.accessToken, queryClient);
-      return;
-    }
+    const { data } = await axios.post(
+      '/api/v1/auth/refresh',
+      { refreshToken },
+      {
+        withCredentials: true,
+        headers: { 'Content-Type': 'application/json' },
+      },
+    );
 
-    const refreshToken = readStashedRefreshToken();
+    const tokens = extractAuthTokens(data);
+    if (!tokens.accessToken) return null;
 
-    // 1) Prefer refresh (body token and/or httpOnly cookie via proxy).
-    try {
-      const { data } = await axios.post(
-        '/api/v1/auth/refresh',
-        refreshToken ? { refreshToken } : {},
-        {
-          withCredentials: true,
-          headers: { 'Content-Type': 'application/json' },
-        },
-      );
-
-      const tokens = extractAuthTokens(data);
-      if (tokens.accessToken) {
-        if (tokens.refreshToken) stashRefreshToken(tokens.refreshToken);
-        await restoreWithAccessToken(tokens.accessToken, queryClient);
-        return;
-      }
-    } catch {
-      // Fall through to access-token stash restore.
-    }
-
-    // 2) Fallback: restore from stashed access token (same browser tab reload).
-    const stashedAccess = readStashedAccessToken();
-    if (stashedAccess) {
-      await restoreWithAccessToken(stashedAccess, queryClient);
-      return;
-    }
-
-    useAuthStore.getState().clearSession();
+    if (tokens.refreshToken) stashRefreshToken(tokens.refreshToken);
+    useAuthStore.getState().setSession(tokens.accessToken);
+    return tokens.accessToken;
   } catch {
-    clearStashedRefreshToken();
-    clearStashedAccessToken();
-    useAuthStore.getState().clearSession();
+    return null;
   }
 }
 
+async function bootSession(queryClient: ReturnType<typeof useQueryClient>) {
+  const storedAccess =
+    useAuthStore.getState().accessToken ?? readStashedAccessToken();
+
+  if (storedAccess) {
+    if (!useAuthStore.getState().accessToken) {
+      useAuthStore.getState().setSession(storedAccess);
+    }
+
+    try {
+      await hydrateProfile(queryClient);
+      useAuthStore.getState().setStatus('authenticated');
+      return;
+    } catch (error) {
+      if (httpStatus(error) !== 401) {
+        // Keep the restored session; profile can retry from the app shell.
+        useAuthStore.getState().setStatus('authenticated');
+        return;
+      }
+
+      const refreshed = await tryRefresh();
+      if (refreshed) {
+        try {
+          await hydrateProfile(queryClient);
+        } catch {
+          // New access token is enough to stay signed in.
+        }
+        useAuthStore.getState().setStatus('authenticated');
+        return;
+      }
+
+      useAuthStore.getState().clearSession();
+      return;
+    }
+  }
+
+  useAuthStore.getState().setStatus('hydrating');
+  const refreshed = await tryRefresh();
+  if (refreshed) {
+    try {
+      await hydrateProfile(queryClient);
+    } catch {
+      // authenticated without profile is still a valid session
+    }
+    useAuthStore.getState().setStatus('authenticated');
+    return;
+  }
+
+  useAuthStore.getState().clearSession();
+}
+
 /**
- * Boots the session once on app load.
- * Access token lives in memory during the SPA session; on full reload we restore via
- * refresh token / cookie, with a sessionStorage access-token fallback for this API/proxy setup.
+ * Restores the session on load from localStorage, then refreshes the profile.
+ * A full page reload must not require a new login while tokens are still valid.
  */
 export function AuthBootstrap({ children }: { children: React.ReactNode }) {
   const status = useAuthStore((s) => s.status);
   const queryClient = useQueryClient();
 
   useEffect(() => {
-    if (status === 'authenticated' || status === 'anonymous') return;
+    if (status === 'anonymous') return;
 
     if (!bootPromise) {
       bootPromise = bootSession(queryClient);

@@ -33,16 +33,7 @@ export function useLogin() {
 
       setSession(data.accessToken, data.user ?? null);
       stashAccessToken(data.accessToken);
-      if (data.refreshToken) {
-        stashRefreshToken(data.refreshToken);
-      } else {
-        // Without this, a full page reload cannot restore the session.
-        toast({
-          title: 'Signed in (session may not survive refresh)',
-          description: 'No refresh token was returned by the API',
-          tone: 'info',
-        });
-      }
+      if (data.refreshToken) stashRefreshToken(data.refreshToken);
 
       if (!data.user) {
         try {

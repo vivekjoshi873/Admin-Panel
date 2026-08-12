@@ -19,7 +19,7 @@ export function UserRolesModal({
   onSubmit: (roleIds: string[]) => void | Promise<void>;
   isPending?: boolean;
 }) {
-  const canWrite = useAuthStore((s) => s.hasPermission('users.update'));
+  const canWrite = useAuthStore((s) => s.hasPermission('user.update'));
   const [roleIds, setRoleIds] = useState<string[]>(initialRoleIds);
 
   useEffect(() => {
