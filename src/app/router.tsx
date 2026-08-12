@@ -1,11 +1,18 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { ProtectedRoute } from '@/shared/components/guards/ProtectedRoute';
 import { AppShell } from '@/shared/components/layout/AppShell';
-import { ModulePlaceholder } from '@/shared/components/layout/ModulePlaceholder';
 import { LoginPage } from '@/features/auth/pages/LoginPage';
 import { ForgotPasswordPage } from '@/features/auth/pages/ForgotPasswordPage';
 import { ResetPasswordPage } from '@/features/auth/pages/ResetPasswordPage';
 import { SetPasswordPage } from '@/features/auth/pages/SetPasswordPage';
+import { RolesPage } from '@/features/rbac/pages/RolesPage';
+import { PermissionsPage } from '@/features/rbac/pages/PermissionsPage';
+import { PermissionMatrixPage } from '@/features/rbac/pages/PermissionMatrixPage';
+import { UsersPage } from '@/features/rbac/pages/UsersPage';
+import { DashboardPage } from '@/features/dashboard/pages/DashboardPage';
+import { AnalyticsPage } from '@/features/analytics/pages/AnalyticsPage';
+import { ProfilePage } from '@/features/profile/pages/ProfilePage';
+import { SettingsRoutes } from '@/features/settings/pages/SettingsRoutes';
 
 export function AppRouter() {
   return (
@@ -17,14 +24,14 @@ export function AppRouter() {
 
       <Route element={<ProtectedRoute />}>
         <Route element={<AppShell />}>
-          <Route index element={<ModulePlaceholder title="Dashboard" />} />
-          <Route path="analytics" element={<ModulePlaceholder title="Analytics" />} />
-          <Route path="rbac/roles" element={<ModulePlaceholder title="Roles" />} />
-          <Route path="rbac/permissions" element={<ModulePlaceholder title="Permissions" />} />
-          <Route path="rbac/matrix" element={<ModulePlaceholder title="Permission matrix" />} />
-          <Route path="rbac/users" element={<ModulePlaceholder title="Users" />} />
-          <Route path="profile" element={<ModulePlaceholder title="Profile" />} />
-          <Route path="settings/*" element={<ModulePlaceholder title="Settings" />} />
+          <Route index element={<DashboardPage />} />
+          <Route path="analytics" element={<AnalyticsPage />} />
+          <Route path="rbac/roles" element={<RolesPage />} />
+          <Route path="rbac/permissions" element={<PermissionsPage />} />
+          <Route path="rbac/matrix" element={<PermissionMatrixPage />} />
+          <Route path="rbac/users" element={<UsersPage />} />
+          <Route path="profile" element={<ProfilePage />} />
+          <Route path="settings/*" element={<SettingsRoutes />} />
         </Route>
       </Route>
 

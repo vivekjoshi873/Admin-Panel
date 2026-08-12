@@ -1,4 +1,5 @@
 import { api } from '@/shared/api/client';
+import { extractAuthTokens } from '@/shared/lib/auth-tokens';
 import type {
   AuthUser,
   LoginPayload,
@@ -8,7 +9,8 @@ import type {
 
 function unwrapUser(payload: unknown): AuthUser {
   const raw = payload as Record<string, unknown>;
-  const user = (raw?.user ?? raw?.data ?? raw) as AuthUser;
+  const nested = (raw?.data as Record<string, unknown> | undefined) ?? raw;
+  const user = (nested?.user ?? nested) as AuthUser;
   return {
     ...user,
     roles: user.roles ?? [],
@@ -18,7 +20,9 @@ function unwrapUser(payload: unknown): AuthUser {
 
 function normalizePermissions(user: AuthUser): string[] {
   if (Array.isArray(user.permissions) && user.permissions.length) {
-    return user.permissions.map((p) => (typeof p === 'string' ? p : (p as { slug?: string }).slug ?? '')).filter(Boolean);
+    return user.permissions
+      .map((p) => (typeof p === 'string' ? p : ((p as { slug?: string }).slug ?? '')))
+      .filter(Boolean);
   }
 
   const fromRoles =
@@ -33,12 +37,15 @@ function normalizePermissions(user: AuthUser): string[] {
 export const authApi = {
   async login(payload: LoginPayload): Promise<LoginResponse> {
     const { data } = await api.post('/api/v1/auth/login', payload);
-    const body = data?.data ?? data;
+    const tokens = extractAuthTokens(data);
+    const body = (data?.data ?? data) as Record<string, unknown>;
+    const userRaw = (body?.user ?? (data as { user?: unknown })?.user) as AuthUser | undefined;
+
     return {
-      accessToken: body.accessToken ?? body.access_token ?? body.token,
-      refreshToken: body.refreshToken ?? body.refresh_token,
-      user: body.user ? unwrapUser(body.user) : undefined,
-      expiresIn: body.expiresIn ?? body.expires_in,
+      accessToken: tokens.accessToken ?? '',
+      refreshToken: tokens.refreshToken,
+      user: userRaw ? unwrapUser(userRaw) : undefined,
+      expiresIn: (body?.expiresIn ?? body?.expires_in) as number | undefined,
     };
   },
 
@@ -60,18 +67,12 @@ export const authApi = {
     return data?.data ?? data;
   },
 
-  async resetPassword(input: {
-    token: string;
-    password: string;
-  }): Promise<MessageResponse> {
+  async resetPassword(input: { token: string; password: string }): Promise<MessageResponse> {
     const { data } = await api.post('/api/v1/auth/reset-password', input);
     return data?.data ?? data;
   },
 
-  async setPassword(input: {
-    token: string;
-    password: string;
-  }): Promise<MessageResponse> {
+  async setPassword(input: { token: string; password: string }): Promise<MessageResponse> {
     const { data } = await api.post('/api/v1/auth/set-password', input);
     return data?.data ?? data;
   },

@@ -4,12 +4,15 @@ import { authApi } from './api';
 import { queryKeys } from '@/shared/lib/query-keys';
 import { getErrorMessage } from '@/shared/lib/cn';
 import {
+  clearStashedAccessToken,
   clearStashedRefreshToken,
+  stashAccessToken,
   stashRefreshToken,
   useAuthStore,
 } from '@/shared/stores/auth-store';
 import { toast } from '@/shared/stores/toast-store';
 import type { LoginFormValues } from './schemas';
+import { resetAuthBootstrap } from './AuthBootstrap';
 
 export function useLogin() {
   const navigate = useNavigate();
@@ -19,8 +22,27 @@ export function useLogin() {
   return useMutation({
     mutationFn: (values: LoginFormValues) => authApi.login(values),
     onSuccess: async (data) => {
+      if (!data.accessToken) {
+        toast({
+          title: 'Sign-in failed',
+          description: 'Login response did not include an access token',
+          tone: 'error',
+        });
+        return;
+      }
+
       setSession(data.accessToken, data.user ?? null);
-      if (data.refreshToken) stashRefreshToken(data.refreshToken);
+      stashAccessToken(data.accessToken);
+      if (data.refreshToken) {
+        stashRefreshToken(data.refreshToken);
+      } else {
+        // Without this, a full page reload cannot restore the session.
+        toast({
+          title: 'Signed in (session may not survive refresh)',
+          description: 'No refresh token was returned by the API',
+          tone: 'info',
+        });
+      }
 
       if (!data.user) {
         try {
@@ -74,6 +96,8 @@ export function useLogout() {
     onSettled: () => {
       clearSession();
       clearStashedRefreshToken();
+      clearStashedAccessToken();
+      resetAuthBootstrap();
       queryClient.clear();
       navigate('/login', { replace: true });
     },

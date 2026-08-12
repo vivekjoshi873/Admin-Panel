@@ -18,9 +18,13 @@ export default defineConfig({
     port: 5173,
     proxy: {
       // Local proxy avoids CORS friction while the API is on a bare IP.
+      // cookieDomainRewrite makes Set-Cookie from the API usable on localhost
+      // so refresh can work via httpOnly cookie when the body has no refreshToken.
       '/api': {
         target: process.env.VITE_API_BASE_URL ?? 'http://13.159.7.199:5001',
         changeOrigin: true,
+        secure: false,
+        cookieDomainRewrite: 'localhost',
       },
     },
   },

@@ -47,6 +47,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 }));
 
 const REFRESH_STORAGE_KEY = 'bingo.refreshToken';
+const ACCESS_STORAGE_KEY = 'bingo.accessToken';
 
 export function stashRefreshToken(token: string | null | undefined) {
   if (!token) return;
@@ -68,6 +69,37 @@ export function readStashedRefreshToken(): string | null {
 export function clearStashedRefreshToken() {
   try {
     sessionStorage.removeItem(REFRESH_STORAGE_KEY);
+  } catch {
+    // ignore
+  }
+}
+
+/**
+ * Access token is primarily kept in Zustand memory.
+ * We also stash a copy in sessionStorage so a full page reload can restore
+ * the session when refresh-token/cookie restore fails (common with remote
+ * APIs behind a local Vite proxy). Cleared on logout.
+ */
+export function stashAccessToken(token: string | null | undefined) {
+  if (!token) return;
+  try {
+    sessionStorage.setItem(ACCESS_STORAGE_KEY, token);
+  } catch {
+    // ignore
+  }
+}
+
+export function readStashedAccessToken(): string | null {
+  try {
+    return sessionStorage.getItem(ACCESS_STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function clearStashedAccessToken() {
+  try {
+    sessionStorage.removeItem(ACCESS_STORAGE_KEY);
   } catch {
     // ignore
   }

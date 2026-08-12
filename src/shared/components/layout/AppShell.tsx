@@ -5,11 +5,11 @@ import { useLogout } from '@/features/auth/hooks';
 import { Button } from '@/shared/components/ui/Button';
 import { displayName, cn } from '@/shared/lib/cn';
 import { usePermission } from '@/shared/hooks/usePermission';
+import { useQuery } from '@tanstack/react-query';
+import { getSettingsSidebar } from '@/features/settings/api';
 
-/**
- * Fallback nav until `/admin/settings/sidebar` is wired in the Settings module.
- * Each item still respects permission slugs so RBAC demos work before Settings lands.
- */
+// Fallback while the backend-provided sidebar is loading.
+// Once `/admin/settings/sidebar` is available we render that instead.
 const FALLBACK_NAV = [
   { label: 'Dashboard', path: '/', permission: null },
   { label: 'Analytics', path: '/analytics', permission: 'analytics.read' },
@@ -21,30 +21,54 @@ const FALLBACK_NAV = [
   { label: 'Settings', path: '/settings', permission: 'settings.read' },
 ] as const;
 
-function NavItems({ onNavigate }: { onNavigate?: () => void }) {
+function SidebarNavItems({
+  items,
+  onNavigate,
+  depth = 0,
+}: {
+  items: any[];
+  onNavigate?: () => void;
+  depth?: number;
+}) {
   const hasPermission = useAuthStore((s) => s.hasPermission);
 
   return (
     <nav className="flex flex-col gap-1 p-3">
-      {FALLBACK_NAV.map((item) => {
-        if (item.permission && !hasPermission(item.permission)) return null;
+      {items.map((item) => {
+        const perm = item.permission ?? null;
+        if (perm && !hasPermission(perm)) return null;
+
+        const path = item.path ?? item.href;
+        const label = item.label ?? item.name;
+        const children = Array.isArray(item.children) ? item.children : [];
+
         return (
-          <NavLink
-            key={item.path}
-            to={item.path}
-            end={item.path === '/'}
-            onClick={onNavigate}
-            className={({ isActive }) =>
-              cn(
-                'rounded-lg px-3 py-2 text-sm font-medium transition',
-                isActive
-                  ? 'bg-[var(--accent)]/15 text-[var(--accent)]'
-                  : 'text-[var(--muted)] hover:bg-black/5 hover:text-[var(--ink)] dark:hover:bg-white/5',
-              )
-            }
-          >
-            {item.label}
-          </NavLink>
+          <div key={path ?? label}>
+            {path ? (
+              <NavLink
+                to={path}
+                end={path === '/'}
+                onClick={onNavigate}
+                className={({ isActive }) =>
+                  cn(
+                    'block rounded-lg px-3 py-2 text-sm font-medium transition',
+                    depth ? 'ml-3' : null,
+                    isActive
+                      ? 'bg-[var(--accent)]/15 text-[var(--accent)]'
+                      : 'text-[var(--muted)] hover:bg-black/5 hover:text-[var(--ink)] dark:hover:bg-white/5',
+                  )
+                }
+              >
+                {label}
+              </NavLink>
+            ) : null}
+
+            {children.length ? (
+              <div className="mt-1">
+                <SidebarNavItems items={children} depth={depth + 1} onNavigate={onNavigate} />
+              </div>
+            ) : null}
+          </div>
         );
       })}
     </nav>
@@ -61,6 +85,21 @@ export function AppShell() {
   const user = useAuthStore((s) => s.user);
   const logout = useLogout();
   const canLogoutAll = usePermission('auth.logout-all');
+
+  const sidebarQuery = useQuery({
+    queryKey: ['admin', 'settings', 'sidebar'],
+    queryFn: getSettingsSidebar,
+    retry: false,
+    staleTime: 60_000,
+  });
+
+  const sidebarItems =
+    sidebarQuery.data?.items ??
+    sidebarQuery.data?.data?.items ??
+    sidebarQuery.data?.sidebar?.items ??
+    null;
+
+  const navItems = sidebarItems?.length ? sidebarItems : FALLBACK_NAV;
 
   return (
     <div className="min-h-screen lg:grid lg:grid-cols-[auto_1fr]">
@@ -82,10 +121,14 @@ export function AppShell() {
             onClick={toggleSidebar}
             aria-label="Toggle sidebar"
           >
-            ☰
+            ?
           </button>
         </div>
-        {!collapsed ? <NavItems /> : <div className="p-3 text-xs text-[var(--muted)]">···</div>}
+        {!collapsed ? (
+          <SidebarNavItems items={navItems as any[]} />
+        ) : (
+          <div className="p-3 text-xs text-[var(--muted)]">???</div>
+        )}
       </aside>
 
       {mobileOpen ? (
@@ -100,10 +143,10 @@ export function AppShell() {
             <div className="flex h-14 items-center justify-between border-b border-[var(--line)] px-4">
               <span className="font-display text-lg font-semibold">Bingo</span>
               <button type="button" onClick={() => setMobileOpen(false)}>
-                ✕
+                ?
               </button>
             </div>
-            <NavItems onNavigate={() => setMobileOpen(false)} />
+            <SidebarNavItems items={navItems as any[]} onNavigate={() => setMobileOpen(false)} />
           </div>
         </div>
       ) : null}
@@ -117,11 +160,9 @@ export function AppShell() {
               onClick={() => setMobileOpen(true)}
               aria-label="Open menu"
             >
-              ☰
+              ?
             </button>
-            <p className="truncate text-sm text-[var(--muted)]">
-              {user ? displayName(user) : 'Admin'}
-            </p>
+            <p className="truncate text-sm text-[var(--muted)]">{user ? displayName(user) : 'Admin'}</p>
           </div>
           <div className="flex items-center gap-2">
             <Button variant="ghost" size="sm" onClick={toggleTheme}>
@@ -137,12 +178,7 @@ export function AppShell() {
                 Logout all
               </Button>
             ) : null}
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => logout.mutate(false)}
-              loading={logout.isPending}
-            >
+            <Button variant="secondary" size="sm" onClick={() => logout.mutate(false)} loading={logout.isPending}>
               Logout
             </Button>
           </div>

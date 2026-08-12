@@ -4,11 +4,14 @@ import axios, {
   type InternalAxiosRequestConfig,
 } from 'axios';
 import {
+  clearStashedAccessToken,
   clearStashedRefreshToken,
   readStashedRefreshToken,
+  stashAccessToken,
   stashRefreshToken,
   useAuthStore,
 } from '@/shared/stores/auth-store';
+import { extractAuthTokens } from '@/shared/lib/auth-tokens';
 
 const rawBase = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '') ?? '';
 
@@ -58,32 +61,29 @@ function isAuthRefreshUrl(url?: string) {
 }
 
 async function requestSilentRefresh(): Promise<string> {
-  const body: Record<string, string> = {};
   const stashed = readStashedRefreshToken();
-  if (stashed) body.refreshToken = stashed;
 
   // Dedicated axios call (not `api`) so a 401 here does not re-enter the interceptor.
+  // Send body token when we have one; otherwise rely on httpOnly cookie via withCredentials.
   const { data } = await axios.post(
     `${baseURL}/api/v1/auth/refresh`,
-    Object.keys(body).length ? body : undefined,
+    stashed ? { refreshToken: stashed } : {},
     {
       withCredentials: true,
       headers: { 'Content-Type': 'application/json' },
     },
   );
 
-  const accessToken: string =
-    data?.accessToken ?? data?.access_token ?? data?.token ?? data?.data?.accessToken;
-
-  if (!accessToken) {
+  const tokens = extractAuthTokens(data);
+  if (!tokens.accessToken) {
     throw new Error('Refresh response missing access token');
   }
 
-  const nextRefresh = data?.refreshToken ?? data?.refresh_token ?? data?.data?.refreshToken;
-  if (nextRefresh) stashRefreshToken(nextRefresh);
+  if (tokens.refreshToken) stashRefreshToken(tokens.refreshToken);
+  stashAccessToken(tokens.accessToken);
 
-  useAuthStore.getState().setSession(accessToken);
-  return accessToken;
+  useAuthStore.getState().setSession(tokens.accessToken);
+  return tokens.accessToken;
 }
 
 api.interceptors.response.use(
@@ -100,6 +100,7 @@ api.interceptors.response.use(
     if (isAuthRefreshUrl(original.url)) {
       useAuthStore.getState().clearSession();
       clearStashedRefreshToken();
+      clearStashedAccessToken();
       return Promise.reject(error);
     }
 
@@ -132,6 +133,7 @@ api.interceptors.response.use(
       flushQueue(refreshError, null);
       useAuthStore.getState().clearSession();
       clearStashedRefreshToken();
+      clearStashedAccessToken();
       return Promise.reject(refreshError);
     } finally {
       isRefreshing = false;
