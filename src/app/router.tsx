@@ -2,9 +2,11 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import { ProtectedRoute } from '@/shared/components/guards/ProtectedRoute';
 import { AppShell } from '@/shared/components/layout/AppShell';
 import { LoginPage } from '@/features/auth/pages/LoginPage';
+import { RegisterPage } from '@/features/auth/pages/RegisterPage';
 import { ForgotPasswordPage } from '@/features/auth/pages/ForgotPasswordPage';
 import { ResetPasswordPage } from '@/features/auth/pages/ResetPasswordPage';
 import { SetPasswordPage } from '@/features/auth/pages/SetPasswordPage';
+import { VerifyOtpPage } from '@/features/auth/pages/VerifyOtpPage';
 import { RolesPage } from '@/features/rbac/pages/RolesPage';
 import { PermissionsPage } from '@/features/rbac/pages/PermissionsPage';
 import { PermissionMatrixPage } from '@/features/rbac/pages/PermissionMatrixPage';
@@ -18,6 +20,8 @@ export function AppRouter() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/register" element={<RegisterPage />} />
+      <Route path="/verify-otp" element={<VerifyOtpPage />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="/set-password" element={<SetPasswordPage />} />

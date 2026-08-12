@@ -42,7 +42,7 @@ export function LoginPage() {
   }
 
   return (
-    <AuthLayout title="Sign in" subtitle="Use your admin credentials to continue.">
+    <AuthLayout title="Sign in" subtitle="Use your email and password to continue.">
       <form
         className="space-y-4"
         onSubmit={handleSubmit((values) => login.mutate(values))}
@@ -69,7 +69,7 @@ export function LoginPage() {
           </p>
         ) : null}
 
-        <div className="flex items-center justify-between text-sm">
+        <div className="flex items-center justify-end text-sm">
           <Link to="/forgot-password" className="text-[var(--accent)] hover:underline">
             Forgot password?
           </Link>
@@ -78,6 +78,13 @@ export function LoginPage() {
         <Button type="submit" className="w-full" loading={login.isPending}>
           Sign in
         </Button>
+
+        <p className="text-center text-sm text-[var(--muted)]">
+          New here?{' '}
+          <Link to="/register" className="text-[var(--accent)] hover:underline">
+            Create an account
+          </Link>
+        </p>
       </form>
     </AuthLayout>
   );

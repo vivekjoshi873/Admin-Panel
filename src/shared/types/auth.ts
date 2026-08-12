@@ -43,6 +43,8 @@ export type LoginResponse = {
   refreshToken?: string;
   user?: AuthUser;
   expiresIn?: number;
+  requiresPasswordSetup?: boolean;
+  message?: string;
 };
 
 export type MessageResponse = {

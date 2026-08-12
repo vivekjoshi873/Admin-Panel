@@ -16,6 +16,7 @@ export function unwrapUser(payload: unknown): AuthUser {
   const roles = flattenRoles(user.roles);
   return {
     ...user,
+    id: String((user as { id?: string; uuid?: string }).id ?? (user as { uuid?: string }).uuid ?? ''),
     roles,
     permissions: normalizePermissions({ ...user, roles }),
   };
@@ -37,19 +38,40 @@ function normalizePermissions(user: AuthUser): string[] {
   return [...new Set(fromRoles.filter(Boolean))];
 }
 
+/** Normalize login / verify-otp payloads into one shape. */
+export function parseSessionPayload(raw: unknown): LoginResponse {
+  const root = (raw ?? {}) as Record<string, unknown>;
+  const body = (root.data as Record<string, unknown> | undefined) ?? root;
+  const tokens = extractAuthTokens(raw);
+  const userRaw = (body.user ?? root.user) as AuthUser | undefined;
+
+  return {
+    accessToken: tokens.accessToken ?? '',
+    refreshToken: tokens.refreshToken,
+    user: userRaw ? unwrapUser(userRaw) : undefined,
+    expiresIn: (body.expiresIn ?? body.expires_in) as number | undefined,
+    requiresPasswordSetup: Boolean(body.requiresPasswordSetup ?? root.requiresPasswordSetup),
+    message: String(root.message ?? body.message ?? '') || undefined,
+  };
+}
+
+export type OtpSendResponse = {
+  message?: string;
+  email?: string;
+  expiresInMinutes?: number;
+};
+
+export type UserExistsResponse = {
+  exists?: boolean;
+  hasLocalProfile?: boolean;
+  checked?: boolean;
+  [key: string]: unknown;
+};
+
 export const authApi = {
   async login(payload: LoginPayload): Promise<LoginResponse> {
     const { data } = await api.post('/api/v1/auth/login', payload);
-    const tokens = extractAuthTokens(data);
-    const body = (data?.data ?? data) as Record<string, unknown>;
-    const userRaw = (body?.user ?? (data as { user?: unknown })?.user) as AuthUser | undefined;
-
-    return {
-      accessToken: tokens.accessToken ?? '',
-      refreshToken: tokens.refreshToken,
-      user: userRaw ? unwrapUser(userRaw) : undefined,
-      expiresIn: (body?.expiresIn ?? body?.expires_in) as number | undefined,
-    };
+    return parseSessionPayload(data);
   },
 
   /** Login on a raw client so a wrong password does not clear the current session. */
@@ -60,14 +82,7 @@ export const authApi = {
       withCredentials: true,
       headers: { 'Content-Type': 'application/json' },
     });
-    const tokens = extractAuthTokens(data);
-    const body = (data?.data ?? data) as Record<string, unknown>;
-    const userRaw = (body?.user ?? (data as { user?: unknown })?.user) as AuthUser | undefined;
-    return {
-      accessToken: tokens.accessToken ?? '',
-      refreshToken: tokens.refreshToken,
-      user: userRaw ? unwrapUser(userRaw) : undefined,
-    };
+    return parseSessionPayload(data);
   },
 
   async profile(): Promise<AuthUser> {
@@ -83,21 +98,89 @@ export const authApi = {
     await api.post('/api/v1/auth/logout-all');
   },
 
-  async forgotPassword(email: string): Promise<MessageResponse> {
+  async register(input: {
+    fullName: string;
+    email: string;
+    password: string;
+    phone?: string;
+    countryId?: string;
+  }): Promise<OtpSendResponse> {
+    const { data } = await api.post('/api/v1/auth/register', input);
+    const body = (data?.data ?? data) as OtpSendResponse;
+    return {
+      message: data?.message ?? body.message,
+      email: body.email ?? input.email,
+      expiresInMinutes: body.expiresInMinutes,
+    };
+  },
+
+  async userExists(email: string): Promise<UserExistsResponse> {
+    const { data } = await api.post('/api/v1/auth/user-exists', { email });
+    return (data?.data ?? data) as UserExistsResponse;
+  },
+
+  async sendEmailOtp(email: string): Promise<OtpSendResponse> {
+    const { data } = await api.post('/api/v1/auth/email/send-otp', { email });
+    const body = (data?.data ?? data) as OtpSendResponse;
+    return {
+      message: data?.message ?? body.message,
+      email: body.email ?? email,
+      expiresInMinutes: body.expiresInMinutes,
+    };
+  },
+
+  async resendEmailOtp(email: string): Promise<OtpSendResponse> {
+    const { data } = await api.post('/api/v1/auth/email/resend-otp', { email });
+    const body = (data?.data ?? data) as OtpSendResponse;
+    return {
+      message: data?.message ?? body.message,
+      email: body.email ?? email,
+      expiresInMinutes: body.expiresInMinutes,
+    };
+  },
+
+  async verifyEmailOtp(input: { email: string; otp: string }): Promise<LoginResponse> {
+    const { data } = await api.post('/api/v1/auth/email/verify-otp', input);
+    return parseSessionPayload(data);
+  },
+
+  async forgotPassword(email: string): Promise<MessageResponse & { token?: string }> {
     const { data } = await api.post('/api/v1/auth/forgot-password', { email });
+    const body = (data?.data ?? data) as Record<string, unknown>;
+    const token =
+      (typeof body?.token === 'string' && body.token) ||
+      (typeof body?.resetToken === 'string' && body.resetToken) ||
+      undefined;
+    return {
+      message: String(
+        data?.message ?? body?.message ?? 'Password reset link sent successfully',
+      ),
+      ...(token ? { token } : {}),
+    };
+  },
+
+  /**
+   * Swagger ResetPasswordDto: token + otp + password + confirmPassword only.
+   * Do not send email — API rejects unknown properties.
+   */
+  async resetPassword(input: {
+    token: string;
+    otp: string;
+    password: string;
+    confirmPassword: string;
+  }): Promise<MessageResponse> {
+    const { data } = await api.post('/api/v1/auth/reset-password', {
+      token: input.token,
+      otp: input.otp,
+      password: input.password,
+      confirmPassword: input.confirmPassword,
+    });
     return data?.data ?? data;
   },
 
-  async resetPassword(input: { token: string; password: string }): Promise<MessageResponse> {
-    const { data } = await api.post('/api/v1/auth/reset-password', input);
-    return data?.data ?? data;
-  },
-
-  async setPassword(input: { password: string; token?: string }): Promise<MessageResponse> {
-    const body = input.token
-      ? { token: input.token, password: input.password }
-      : { password: input.password };
-    const { data } = await api.post('/api/v1/auth/set-password', body);
+  /** Authenticated set/change password — body is `{ password }` only. */
+  async setPassword(input: { password: string }): Promise<MessageResponse> {
+    const { data } = await api.post('/api/v1/auth/set-password', { password: input.password });
     return data?.data ?? data;
   },
 };
