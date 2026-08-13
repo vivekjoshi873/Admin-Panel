@@ -21,7 +21,7 @@ export function ConfirmDelete({
 
   return (
     <>
-      <Button variant="danger" size="sm" disabled={disabled} onClick={() => setOpen(true)}>
+      <Button variant="danger" className='cursor-pointer' size="sm" disabled={disabled} onClick={() => setOpen(true)}>
         {label}
       </Button>
       <ConfirmDialog

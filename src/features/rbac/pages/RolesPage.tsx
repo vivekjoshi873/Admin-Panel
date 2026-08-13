@@ -82,6 +82,7 @@ export function RolesPage() {
               setInitial(null);
               setModalOpen(true);
             }}
+            className='cursor-pointer'
           >
             Create role
           </Button>
@@ -140,6 +141,7 @@ export function RolesPage() {
                       setInitial(r);
                       setModalOpen(true);
                     }}
+                    className='cursor-pointer'
                   >
                     Edit
                   </Button>
@@ -150,7 +152,9 @@ export function RolesPage() {
                     description="This will remove the role from the system."
                     dangerLabel="Delete"
                     onConfirm={() => deleteMutation.mutateAsync(roleId(r))}
+                    
                   />
+                  
                 </div>
               </div>
             ))}

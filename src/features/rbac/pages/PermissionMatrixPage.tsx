@@ -151,7 +151,7 @@ export function PermissionMatrixPage() {
         title="Permission matrix"
         description="Pick a role, then assign permissions module-by-module."
         actions={
-          <Button loading={assignMutation.isPending} onClick={() => void assignMutation.mutateAsync()}>
+          <Button className='cursor-pointer' loading={assignMutation.isPending} onClick={() => void assignMutation.mutateAsync()}>
             Save changes
           </Button>
         }

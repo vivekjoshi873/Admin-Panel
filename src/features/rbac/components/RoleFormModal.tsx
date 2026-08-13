@@ -56,12 +56,13 @@ export function RoleFormModal({
       onClose={onClose}
       footer={
         <>
-          <Button variant="ghost" onClick={onClose}>
+          <Button variant="ghost" className='cursor-pointer' onClick={onClose}>
             Cancel
           </Button>
           <Button
             onClick={() => void handleSubmit((values) => onSubmit(values))()}
             loading={isPending}
+            className='cursor-pointer'
           >
             {mode === 'create' ? 'Create' : 'Save'}
           </Button>

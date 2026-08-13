@@ -113,7 +113,7 @@ export function SettingsGroupPage() {
             <Button variant="ghost" onClick={() => setDraft(values)} disabled={updateMutation.isPending}>
               Reset
             </Button>
-            <Button loading={updateMutation.isPending} disabled={!canManage} onClick={() => void updateMutation.mutateAsync()}>
+            <Button className='cursor-pointer' loading={updateMutation.isPending} disabled={!canManage} onClick={() => void updateMutation.mutateAsync()}>
               Save changes
             </Button>
           </div>
