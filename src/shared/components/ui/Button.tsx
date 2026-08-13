@@ -1,4 +1,4 @@
-import { forwardRef, type ButtonHTMLAttributes } from 'react';
+import { forwardRef, type ButtonHTMLAttributes, type CSSProperties } from 'react';
 import { Slot } from '@radix-ui/react-slot';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { Loader2 } from 'lucide-react';
@@ -10,7 +10,7 @@ const buttonVariants = cva(
     variants: {
       variant: {
         primary:
-          'bg-[var(--accent)] text-white shadow-[0_10px_24px_rgb(13_107_82_/_0.22)] hover:brightness-110 dark:text-stone-950',
+          'bg-[var(--accent)] text-[var(--btn-on-accent)] shadow-[0_10px_24px_rgb(13_107_82_/_0.22)] hover:brightness-110',
         secondary:
           'border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] hover:bg-black/[0.03] dark:hover:bg-white/[0.04]',
         ghost: 'bg-transparent text-[var(--ink)] hover:bg-black/[0.04] dark:hover:bg-white/[0.05]',
@@ -36,10 +36,15 @@ type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> &
   };
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
-  { className, variant, size, loading, disabled, asChild = false, children, ...props },
+  { className, variant, size, loading, disabled, asChild = false, children, style, ...props },
   ref,
 ) {
   const Comp = asChild ? Slot : 'button';
+  const resolvedVariant = variant ?? 'primary';
+  const onAccentStyle =
+    resolvedVariant === 'primary'
+      ? ({ color: 'var(--btn-on-accent)', ...style } as CSSProperties)
+      : style;
 
   // Slot (asChild) requires exactly one element child — never inject Loader beside it.
   if (asChild) {
@@ -47,6 +52,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       <Comp
         ref={ref}
         className={cn(buttonVariants({ variant, size }), className)}
+        style={style}
         {...props}
       >
         {children}
@@ -58,6 +64,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
     <Comp
       ref={ref}
       className={cn(buttonVariants({ variant, size }), className)}
+      style={onAccentStyle}
       disabled={disabled || loading}
       {...props}
     >
