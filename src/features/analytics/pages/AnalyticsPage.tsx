@@ -1,7 +1,16 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import {
+  Area,
+  AreaChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts';
+import { parse } from 'date-fns';
 import { PageHeader } from '@/shared/components/ui/PageHeader';
 import { Skeleton } from '@/shared/components/ui/Skeleton';
 import { EmptyState } from '@/shared/components/ui/EmptyState';
@@ -18,7 +27,6 @@ import {
   getAnalyticsSnapshot,
   getAnalyticsTimeseries,
 } from '../api';
-import { parse } from 'date-fns';
 
 type PeriodKey = AnalyticsPeriod | 'custom';
 
@@ -46,6 +54,33 @@ function formatNumber(value: unknown) {
   const n = Number(value);
   if (!Number.isFinite(n)) return '—';
   return new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 }).format(n);
+}
+
+function ChartTooltip({
+  active,
+  payload,
+  label,
+  metric,
+}: {
+  active?: boolean;
+  payload?: Array<{ value?: number | string }>;
+  label?: string | number;
+  metric: 'orders' | 'revenue';
+}) {
+  if (!active || !payload?.length) return null;
+  const raw = payload[0]?.value;
+  const formatted = metric === 'revenue' ? formatCurrency(raw) : formatNumber(raw);
+
+  return (
+    <div className="rounded-xl border border-[var(--line)] bg-[var(--surface-elevated)] px-3 py-2 shadow-[var(--shadow)]">
+      <p className="text-xs font-medium text-[var(--muted)]">{String(label ?? '')}</p>
+      <p className="mt-1 text-sm font-semibold text-[var(--ink)]">
+        <span className="capitalize text-[var(--muted)]">{metric}</span>
+        <span className="mx-1.5 text-[var(--line)]">·</span>
+        <span className="text-[var(--accent)]">{formatted}</span>
+      </p>
+    </div>
+  );
 }
 
 function RankedList({
@@ -332,7 +367,12 @@ export function AnalyticsPage() {
 
           <div className="rounded-xl border border-[var(--line)] bg-[var(--surface)]/60 p-4">
             <div className="mb-3 flex items-center justify-between">
-              <p className="font-semibold">Timeseries</p>
+              <div>
+                <p className="font-semibold">Timeseries</p>
+                <p className="text-xs text-[var(--muted)]">
+                  {metric === 'revenue' ? 'Gross revenue' : 'Order count'} over the selected period
+                </p>
+              </div>
               {snapshotQuery.isFetching || timeseriesQuery.isFetching ? (
                 <span className="text-xs text-[var(--muted)]">Updating…</span>
               ) : null}
@@ -345,22 +385,57 @@ export function AnalyticsPage() {
                 />
               ) : (
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={chartData} margin={{ top: 8, right: 8, left: 0, bottom: 8 }}>
-                    <XAxis dataKey="label" tick={{ fontSize: 12 }} />
-                    <YAxis tick={{ fontSize: 12 }} />
-                    <Tooltip
-                      formatter={(value: unknown) =>
-                        metric === 'revenue' ? formatCurrency(value) : formatNumber(value)
-                      }
+                  <AreaChart data={chartData} margin={{ top: 12, right: 12, left: 0, bottom: 4 }}>
+                    <defs>
+                      <linearGradient id="analyticsAreaFill" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="var(--accent)" stopOpacity={0.35} />
+                        <stop offset="100%" stopColor="var(--accent)" stopOpacity={0.02} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid
+                      stroke="var(--line)"
+                      strokeDasharray="4 4"
+                      vertical={false}
                     />
-                    <Line
+                    <XAxis
+                      dataKey="label"
+                      tick={{ fontSize: 11, fill: 'var(--muted)' }}
+                      tickLine={false}
+                      axisLine={{ stroke: 'var(--line)' }}
+                      minTickGap={28}
+                    />
+                    <YAxis
+                      tick={{ fontSize: 11, fill: 'var(--muted)' }}
+                      tickLine={false}
+                      axisLine={false}
+                      width={44}
+                    />
+                    <Tooltip
+                      cursor={{ stroke: 'var(--muted)', strokeWidth: 1, strokeDasharray: '4 4' }}
+                      content={({ active, payload, label }) => (
+                        <ChartTooltip
+                          active={active}
+                          payload={payload as unknown as Array<{ value?: number | string }> | undefined}
+                          label={label as string | number | undefined}
+                          metric={metric}
+                        />
+                      )}
+                    />
+                    <Area
                       type="monotone"
                       dataKey={metric}
-                      stroke="#0f6e56"
+                      stroke="var(--accent)"
+                      strokeWidth={2.5}
+                      fill="url(#analyticsAreaFill)"
                       dot={false}
-                      strokeWidth={2}
+                      activeDot={{
+                        r: 5,
+                        strokeWidth: 2,
+                        stroke: 'var(--surface)',
+                        fill: 'var(--accent)',
+                      }}
                     />
-                  </LineChart>
+                  </AreaChart>
                 </ResponsiveContainer>
               )}
             </div>
