@@ -30,12 +30,23 @@ export async function getRoles(): Promise<any[]> {
 }
 
 export async function createRole(payload: CreateRolePayload): Promise<any> {
-  const { data } = await api.post('/api/v1/roles', payload);
+  const { data } = await api.post('/api/v1/roles', {
+    name: payload.name,
+    slug: payload.slug,
+    description: payload.description,
+    level: Number(payload.level),
+  });
   return unwrap<any>(data);
 }
 
 export async function updateRole(roleId: string, payload: UpdateRolePayload): Promise<any> {
-  const { data } = await api.patch(`/api/v1/roles/${roleId}`, payload);
+  const body: Record<string, unknown> = {};
+  if (payload.name !== undefined) body.name = payload.name;
+  if (payload.slug !== undefined) body.slug = payload.slug;
+  if (payload.description !== undefined) body.description = payload.description;
+  if (payload.level !== undefined) body.level = Number(payload.level);
+
+  const { data } = await api.patch(`/api/v1/roles/${roleId}`, body);
   return unwrap<any>(data);
 }
 
@@ -118,7 +129,15 @@ export async function createUser(payload: CreateUserPayload): Promise<any> {
 }
 
 export async function updateUser(userId: string, payload: UpdateUserPayload): Promise<any> {
-  const { data } = await api.patch(`/api/v1/users/${userId}`, payload);
+  // UpdateUserDto (Swagger): fullName, email, password, phone, roleIds — not isActive.
+  const body: Record<string, unknown> = {};
+  if (payload.fullName !== undefined) body.fullName = payload.fullName;
+  if (payload.email !== undefined) body.email = payload.email;
+  if (payload.phone !== undefined) body.phone = payload.phone;
+  if (payload.password !== undefined) body.password = payload.password;
+  if (payload.roleIds !== undefined) body.roleIds = toApiIds(payload.roleIds);
+
+  const { data } = await api.patch(`/api/v1/users/${userId}`, body);
   return unwrap<any>(data);
 }
 
@@ -133,13 +152,14 @@ export async function getUserRoles(userId: string): Promise<string[]> {
 
 export async function assignUserRoles(userId: string, payload: AssignUserRolesPayload): Promise<void> {
   const roleIds = toApiIds(payload.roleIds);
+  // AssignRoleDto is empty in Swagger; UpdateUserDto documents `roleIds: number[]`.
+  // Prefer the documented PATCH, then the dedicated assign endpoint.
   try {
-    await api.post(`/api/v1/users/${userId}/roles`, { roleIds });
+    await api.patch(`/api/v1/users/${userId}`, { roleIds });
   } catch (error) {
     const status = (error as { response?: { status?: number } })?.response?.status;
-    // AssignRoleDto is undocumented; UpdateUserDto explicitly accepts roleIds.
-    if (status === 400 || status === 404) {
-      await api.patch(`/api/v1/users/${userId}`, { roleIds });
+    if (status === 400 || status === 404 || status === 405 || status === 422) {
+      await api.post(`/api/v1/users/${userId}/roles`, { roleIds });
       return;
     }
     throw error;

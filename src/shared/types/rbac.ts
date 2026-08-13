@@ -4,6 +4,8 @@ export type CreateRolePayload = {
   name: string;
   slug?: string;
   description?: string;
+  /** Hierarchy rank — API requires integer >= 1. */
+  level: number;
 };
 
 export type UpdateRolePayload = Partial<CreateRolePayload>;
@@ -52,10 +54,10 @@ export type CreateUserPayload = {
 export type UpdateUserPayload = {
   email?: string;
   fullName?: string;
-  firstName?: string;
-  lastName?: string;
   phone?: string;
-  isActive?: boolean;
+  password?: string;
+  /** Swagger UpdateUserDto — numeric role ids. */
+  roleIds?: Array<string | number>;
 };
 
 export type AssignUserRolesPayload = {

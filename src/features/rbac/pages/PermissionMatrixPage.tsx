@@ -17,7 +17,6 @@ import { toast } from '@/shared/stores/toast-store';
 import { getErrorMessage } from '@/shared/lib/cn';
 import { isForbidden } from '@/shared/lib/permissions';
 import { assignRolePermissions, getPermissionsModules, getRolePermissions, getRoles } from '../api';
-import { useAuthStore } from '@/shared/stores/auth-store';
 import { Input } from '@/shared/components/ui/Input';
 
 function entityId(item: { id?: string; uuid?: string }) {
@@ -26,7 +25,6 @@ function entityId(item: { id?: string; uuid?: string }) {
 
 export function PermissionMatrixPage() {
   const queryClient = useQueryClient();
-  const canUpdate = useAuthStore((s) => s.hasPermission('role.update'));
 
   const [roleId, setRoleId] = useState<string>('');
   const [search, setSearch] = useState('');
@@ -153,11 +151,9 @@ export function PermissionMatrixPage() {
         title="Permission matrix"
         description="Pick a role, then assign permissions module-by-module."
         actions={
-          canUpdate ? (
-            <Button loading={assignMutation.isPending} onClick={() => void assignMutation.mutateAsync()}>
-              Save changes
-            </Button>
-          ) : null
+          <Button loading={assignMutation.isPending} onClick={() => void assignMutation.mutateAsync()}>
+            Save changes
+          </Button>
         }
       />
 
@@ -222,7 +218,7 @@ export function PermissionMatrixPage() {
                       <Button
                         size="sm"
                         variant="secondary"
-                        disabled={!canUpdate || noneSelected}
+                        disabled={allSelected}
                         onClick={() => {
                           setDraftIds(selectAllModule(modulePermissions) as any);
                         }}
@@ -232,7 +228,7 @@ export function PermissionMatrixPage() {
                       <Button
                         size="sm"
                         variant="ghost"
-                        disabled={!canUpdate || allSelected}
+                        disabled={noneSelected}
                         onClick={() => {
                           setDraftIds(clearModule(modulePermissions) as any);
                         }}
@@ -257,7 +253,6 @@ export function PermissionMatrixPage() {
                           </div>
                           <Checkbox
                             checked={checkedFromDraft}
-                            disabled={!canUpdate}
                             onChange={(next) => togglePermission(p, next)}
                           />
                         </div>

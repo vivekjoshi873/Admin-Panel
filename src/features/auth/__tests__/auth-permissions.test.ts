@@ -56,6 +56,11 @@ describe('auth permission checks', () => {
     expect(useAuthStore.getState().hasPermission('role.delete')).toBe(true);
   });
 
+  it('detects Super-Admin name variants as super_admin', () => {
+    expect(isSuperAdmin([{ name: 'Super-Admin', slug: '' }])).toBe(true);
+    expect(isSuperAdmin([{ name: 'SuperAdmin', slug: 'superadmin' }])).toBe(true);
+  });
+
   it('treats admin.* as a superuser capability', () => {
     useAuthStore.setState({
       user: {

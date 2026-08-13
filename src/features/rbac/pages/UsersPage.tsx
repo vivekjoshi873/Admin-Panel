@@ -27,15 +27,16 @@ import { ConfirmDelete } from '../components/ConfirmDelete';
 import { useAuthStore } from '@/shared/stores/auth-store';
 import type { UserCreateValues, UserUpdateValues } from '../schemas';
 
-function userId(u: { id?: string; uuid?: string }) {
-  return String(u.id ?? u.uuid ?? '');
+/** Resolve the path id for /api/v1/users/{id} (Swagger: string). */
+function userId(u: { id?: string | number; uuid?: string } | null | undefined) {
+  if (!u) return '';
+  if (u.id != null && u.id !== '') return String(u.id);
+  if (u.uuid) return String(u.uuid);
+  return '';
 }
 
 export function UsersPage() {
   const queryClient = useQueryClient();
-  const canCreate = useAuthStore((s) => s.hasPermission('user.create'));
-  const canUpdate = useAuthStore((s) => s.hasPermission('user.update'));
-  const canDelete = useAuthStore((s) => s.hasPermission('user.delete'));
 
   const [page, setPage] = useState(1);
   const [limit] = useState(10);
@@ -58,6 +59,7 @@ export function UsersPage() {
   const [formMode, setFormMode] = useState<'create' | 'edit'>('create');
   const [activeUser, setActiveUser] = useState<any>(null);
   const [initialRoleIds, setInitialRoleIds] = useState<string[]>([]);
+  const [loadingRolesFor, setLoadingRolesFor] = useState<string | null>(null);
 
   const roles = (rolesQuery.data ?? []).map((r: any) => ({
     id: String(r.id ?? r.uuid),
@@ -83,7 +85,12 @@ export function UsersPage() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: (values: UserUpdateValues) => updateUser(userId(activeUser), values),
+    mutationFn: (values: UserUpdateValues) =>
+      updateUser(userId(activeUser), {
+        fullName: values.fullName,
+        email: values.email,
+        phone: values.phone,
+      }),
     onSuccess: async () => {
       toast({ title: 'User updated', tone: 'success' });
       setFormOpen(false);
@@ -110,7 +117,7 @@ export function UsersPage() {
       await queryClient.invalidateQueries({ queryKey: ['users'] });
 
       const me = useAuthStore.getState().user;
-      const myId = String(me?.id ?? (me as { uuid?: string } | null)?.uuid ?? '');
+      const myId = userId(me as { id?: string; uuid?: string } | null);
       if (myId && myId === payload.userId) {
         try {
           const profile = await authApi.profile();
@@ -124,14 +131,34 @@ export function UsersPage() {
     onError: (err) => toast({ title: 'Update failed', description: getErrorMessage(err), tone: 'error' }),
   });
 
-  const userRolesQuery = useMutation({
-    mutationFn: async (id: string) => getUserRoles(id),
-    onSuccess: (roleIds) => {
+  async function openRolesModal(u: any) {
+    const id = userId(u);
+    setActiveUser(u);
+    // Open immediately from the row (same idea as Analytics: don't block the UI on a pre-check).
+    const fromRow = flattenRoles(u.roles)
+      .map((r) => String(r.id))
+      .filter(Boolean);
+    setInitialRoleIds(fromRow);
+    setRolesModalOpen(true);
+
+    if (!id) {
+      toast({ title: 'Could not load roles', description: 'User id is missing.', tone: 'error' });
+      return;
+    }
+
+    setLoadingRolesFor(id);
+    try {
+      const roleIds = await getUserRoles(id);
       setInitialRoleIds(roleIds.map(String));
-      setRolesModalOpen(true);
-    },
-    onError: (err) => toast({ title: 'Could not load roles', description: getErrorMessage(err), tone: 'error' }),
-  });
+    } catch (err) {
+      // Keep row-derived roles; only toast if we had nothing to show.
+      if (fromRow.length === 0) {
+        toast({ title: 'Could not load roles', description: getErrorMessage(err), tone: 'error' });
+      }
+    } finally {
+      setLoadingRolesFor(null);
+    }
+  }
 
   const usersBody = usersQuery.data ?? {};
   const allUsers = Array.isArray(usersBody)
@@ -159,17 +186,15 @@ export function UsersPage() {
         title="Users"
         description="Search users, create accounts, and assign roles."
         actions={
-          canCreate ? (
-            <Button
-              onClick={() => {
-                setFormMode('create');
-                setActiveUser(null);
-                setFormOpen(true);
-              }}
-            >
-              Create user
-            </Button>
-          ) : null
+          <Button
+            onClick={() => {
+              setFormMode('create');
+              setActiveUser(null);
+              setFormOpen(true);
+            }}
+          >
+            Create user
+          </Button>
         }
       />
 
@@ -208,16 +233,12 @@ export function UsersPage() {
         <EmptyState
           title="No users"
           description="Try changing search, or create a user."
-          actionLabel={canCreate ? 'Create user' : undefined}
-          onAction={
-            canCreate
-              ? () => {
-                  setFormMode('create');
-                  setActiveUser(null);
-                  setFormOpen(true);
-                }
-              : undefined
-          }
+          actionLabel="Create user"
+          onAction={() => {
+            setFormMode('create');
+            setActiveUser(null);
+            setFormOpen(true);
+          }}
         />
       ) : (
         <div className="overflow-hidden rounded-xl border border-[var(--line)] bg-[var(--surface)]/60">
@@ -249,18 +270,14 @@ export function UsersPage() {
                     <Button
                       size="sm"
                       variant="secondary"
-                      disabled={!canUpdate}
-                      onClick={() => {
-                        setActiveUser(u);
-                        userRolesQuery.mutate(id);
-                      }}
+                      loading={loadingRolesFor === id}
+                      onClick={() => void openRolesModal(u)}
                     >
                       Roles
                     </Button>
                     <Button
                       size="sm"
                       variant="secondary"
-                      disabled={!canUpdate}
                       onClick={() => {
                         setFormMode('edit');
                         setActiveUser(u);
@@ -273,7 +290,6 @@ export function UsersPage() {
                       label="Delete"
                       title="Delete user?"
                       description="This removes the user account."
-                      disabled={!canDelete}
                       onConfirm={() => deleteMutation.mutateAsync(id)}
                     />
                   </div>
@@ -291,7 +307,12 @@ export function UsersPage() {
         onClose={() => setRolesModalOpen(false)}
         isPending={rolesMutation.isPending}
         onSubmit={(roleIds) => {
-          rolesMutation.mutate({ userId: userId(activeUser), roleIds });
+          const id = userId(activeUser);
+          if (!id) {
+            toast({ title: 'Update failed', description: 'User id is missing.', tone: 'error' });
+            return;
+          }
+          rolesMutation.mutate({ userId: id, roleIds });
         }}
       />
 
@@ -304,7 +325,6 @@ export function UsersPage() {
                 fullName: activeUser.fullName ?? activeUser.name,
                 email: activeUser.email,
                 phone: activeUser.phone,
-                isActive: activeUser.isActive,
               }
             : null
         }

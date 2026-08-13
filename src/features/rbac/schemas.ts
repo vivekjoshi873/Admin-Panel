@@ -8,6 +8,8 @@ export const roleSchema = z.object({
     .optional()
     .transform((value) => (value ? value : undefined)),
   description: z.string().trim().optional(),
+  /** API requires integer level >= 1 (role hierarchy). */
+  level: z.coerce.number().int('Level must be a whole number').min(1, 'Level must be at least 1'),
 });
 
 export type RoleFormValues = z.infer<typeof roleSchema>;
@@ -35,7 +37,6 @@ export const userUpdateSchema = z.object({
   fullName: z.string().trim().optional(),
   email: z.string().trim().email('Enter a valid email').optional(),
   phone: z.string().trim().optional(),
-  isActive: z.boolean().optional(),
 });
 
 export type UserUpdateValues = z.infer<typeof userUpdateSchema>;

@@ -11,7 +11,6 @@ import {
   type UserCreateValues,
   type UserUpdateValues,
 } from '../schemas';
-import { useAuthStore } from '@/shared/stores/auth-store';
 
 type RoleOption = { id: string; name: string };
 
@@ -30,7 +29,6 @@ export function UserFormModal({
     fullName?: string;
     email?: string;
     phone?: string;
-    isActive?: boolean;
     roleIds?: string[];
   } | null;
   roles: RoleOption[];
@@ -38,10 +36,6 @@ export function UserFormModal({
   onSubmit: (values: UserCreateValues | UserUpdateValues) => void | Promise<void>;
   isPending?: boolean;
 }) {
-  const canWrite = useAuthStore((s) =>
-    s.hasPermission(mode === 'create' ? 'user.create' : 'user.update'),
-  );
-
   const createForm = useForm<UserCreateValues>({
     resolver: zodResolver(userCreateSchema),
     defaultValues: {
@@ -59,7 +53,6 @@ export function UserFormModal({
       fullName: '',
       email: '',
       phone: '',
-      isActive: true,
     },
   });
 
@@ -78,7 +71,6 @@ export function UserFormModal({
         fullName: initial?.fullName ?? '',
         email: initial?.email ?? '',
         phone: initial?.phone ?? '',
-        isActive: initial?.isActive ?? true,
       });
     }
   }, [open, mode, initial, createForm, editForm]);
@@ -97,7 +89,6 @@ export function UserFormModal({
           </Button>
           <Button
             loading={isPending}
-            disabled={!canWrite}
             onClick={() => {
               if (mode === 'create') {
                 void createForm.handleSubmit((values) => onSubmit(values))();
@@ -111,12 +102,6 @@ export function UserFormModal({
         </>
       }
     >
-      {!canWrite ? (
-        <div className="mb-4 rounded-lg border border-[var(--danger)]/30 bg-red-50 px-4 py-3 text-sm text-[var(--danger)]">
-          You don&apos;t have permission to {mode === 'create' ? 'create' : 'update'} users.
-        </div>
-      ) : null}
-
       {mode === 'create' ? (
         <form className="space-y-4" onSubmit={createForm.handleSubmit((values) => onSubmit(values))}>
           <Input

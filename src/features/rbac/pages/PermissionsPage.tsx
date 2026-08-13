@@ -11,7 +11,6 @@ import { toast } from '@/shared/stores/toast-store';
 import { getErrorMessage } from '@/shared/lib/cn';
 import { isForbidden } from '@/shared/lib/permissions';
 import { getPermissionsModules, createPermission, updatePermission, deletePermission } from '../api';
-import { useAuthStore } from '@/shared/stores/auth-store';
 
 function permissionId(p: { id?: string; uuid?: string }) {
   return String(p.id ?? p.uuid ?? '');
@@ -19,10 +18,6 @@ function permissionId(p: { id?: string; uuid?: string }) {
 
 export function PermissionsPage() {
   const queryClient = useQueryClient();
-
-  const canCreate = useAuthStore((s) => s.hasPermission('permission.create'));
-  const canUpdate = useAuthStore((s) => s.hasPermission('permission.update'));
-  const canDelete = useAuthStore((s) => s.hasPermission('permission.delete'));
 
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ['permissions', 'modules'],
@@ -80,17 +75,15 @@ export function PermissionsPage() {
         title="Permissions"
         description="Permissions are grouped by module; use the matrix to assign them to roles."
         actions={
-          canCreate ? (
-            <Button
-              onClick={() => {
-                setMode('create');
-                setInitial(null);
-                setModalOpen(true);
-              }}
-            >
-              Create permission
-            </Button>
-          ) : null
+          <Button
+            onClick={() => {
+              setMode('create');
+              setInitial(null);
+              setModalOpen(true);
+            }}
+          >
+            Create permission
+          </Button>
         }
       />
 
@@ -140,7 +133,6 @@ export function PermissionsPage() {
                     <Button
                       size="sm"
                       variant="secondary"
-                      disabled={!canUpdate}
                       onClick={() => {
                         setMode('edit');
                         setInitial(p);
@@ -153,7 +145,6 @@ export function PermissionsPage() {
                       label="Delete"
                       title="Delete permission?"
                       description="This will remove the permission from all roles."
-                      disabled={!canDelete}
                       onConfirm={() => deleteMutation.mutateAsync(permissionId(p))}
                     />
                   </div>

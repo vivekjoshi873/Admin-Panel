@@ -11,7 +11,6 @@ import { toast } from '@/shared/stores/toast-store';
 import { getErrorMessage } from '@/shared/lib/cn';
 import { isForbidden } from '@/shared/lib/permissions';
 import { getRoles, createRole, updateRole, deleteRole } from '../api';
-import { useAuthStore } from '@/shared/stores/auth-store';
 
 function roleId(r: { id?: string; uuid?: string }) {
   return String(r.id ?? r.uuid ?? '');
@@ -19,9 +18,6 @@ function roleId(r: { id?: string; uuid?: string }) {
 
 export function RolesPage() {
   const queryClient = useQueryClient();
-  const canCreate = useAuthStore((s) => s.hasPermission('role.create'));
-  const canUpdate = useAuthStore((s) => s.hasPermission('role.update'));
-  const canDelete = useAuthStore((s) => s.hasPermission('role.delete'));
 
   const { data: roles, isLoading, isError, error } = useQuery({
     queryKey: ['roles', 'list'],
@@ -53,7 +49,7 @@ export function RolesPage() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (roleId: string) => deleteRole(roleId),
+    mutationFn: (id: string) => deleteRole(id),
     onSuccess: () => {
       toast({ title: 'Role deleted', tone: 'info' });
       queryClient.invalidateQueries({ queryKey: ['roles'] });
@@ -80,15 +76,15 @@ export function RolesPage() {
         title="Roles"
         description="Manage roles and permissions visibility across the admin UI."
         actions={
-          canCreate ? (
-            <Button onClick={() => {
+          <Button
+            onClick={() => {
               setMode('create');
               setInitial(null);
               setModalOpen(true);
-            }}>
-              Create role
-            </Button>
-          ) : null
+            }}
+          >
+            Create role
+          </Button>
         }
       />
 
@@ -103,16 +99,22 @@ export function RolesPage() {
       ) : isError ? (
         <EmptyState title="Could not load roles" description="Try refreshing or check your network." />
       ) : sortedRoles.length === 0 ? (
-        <EmptyState title="No roles yet" description="Create your first role to start assigning permissions." actionLabel="Create role" onAction={() => {
-          setMode('create');
-          setInitial(null);
-          setModalOpen(true);
-        }} />
+        <EmptyState
+          title="No roles yet"
+          description="Create your first role to start assigning permissions."
+          actionLabel="Create role"
+          onAction={() => {
+            setMode('create');
+            setInitial(null);
+            setModalOpen(true);
+          }}
+        />
       ) : (
         <div className="overflow-hidden rounded-xl border border-[var(--line)] bg-[var(--surface)]/60">
-          <div className="hidden sm:grid sm:grid-cols-[1fr_180px_160px] sm:gap-2 sm:bg-[var(--surface)] sm:px-4 sm:py-3">
+          <div className="hidden sm:grid sm:grid-cols-[1fr_160px_80px_160px] sm:gap-2 sm:bg-[var(--surface)] sm:px-4 sm:py-3">
             <div className="text-sm font-semibold">Role</div>
             <div className="text-sm font-semibold">Slug</div>
+            <div className="text-sm font-semibold">Level</div>
             <div className="text-sm font-semibold text-right">Actions</div>
           </div>
 
@@ -120,19 +122,19 @@ export function RolesPage() {
             {sortedRoles.map((r: any) => (
               <div
                 key={roleId(r) || r.slug}
-                className="grid grid-cols-1 gap-2 px-4 py-3 sm:grid-cols-[1fr_180px_160px] sm:items-center sm:gap-2"
+                className="grid grid-cols-1 gap-2 px-4 py-3 sm:grid-cols-[1fr_160px_80px_160px] sm:items-center sm:gap-2"
               >
                 <div>
                   <p className="font-medium">{r.name}</p>
                   {r.description ? <p className="mt-0.5 text-xs text-[var(--muted)]">{r.description}</p> : null}
                 </div>
                 <div className="text-sm text-[var(--muted)]">{r.slug ?? '-'}</div>
+                <div className="text-sm text-[var(--muted)]">{r.level ?? '—'}</div>
                 <div className="flex items-center justify-between gap-2 sm:justify-end">
                   <Button
                     size="sm"
                     variant="secondary"
                     loading={updateMutation.isPending}
-                    disabled={!canUpdate}
                     onClick={() => {
                       setMode('edit');
                       setInitial(r);
@@ -146,7 +148,6 @@ export function RolesPage() {
                     label="Delete"
                     title="Delete role?"
                     description="This will remove the role from the system."
-                    disabled={!canDelete}
                     dangerLabel="Delete"
                     onConfirm={() => deleteMutation.mutateAsync(roleId(r))}
                   />

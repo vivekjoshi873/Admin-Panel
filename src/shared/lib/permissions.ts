@@ -40,13 +40,22 @@ export function permissionMatches(owned: string[], needed: string | string[]): b
   });
 }
 
+function normalizeRoleKey(value: string): string {
+  return value.toLowerCase().replace(/[\s-]+/g, '_');
+}
+
 export function isSuperAdmin(
   roles?: Array<{ slug?: string; name?: string; role?: { slug?: string; name?: string } }>,
 ): boolean {
   return (roles ?? []).some((r) => {
-    const slug = (r.slug ?? r.role?.slug ?? '').toLowerCase();
-    const name = (r.name ?? r.role?.name ?? '').toLowerCase().replace(/\s+/g, '_');
-    return slug === 'super_admin' || name === 'super_admin';
+    const slug = normalizeRoleKey(r.slug ?? r.role?.slug ?? '');
+    const name = normalizeRoleKey(r.name ?? r.role?.name ?? '');
+    return (
+      slug === 'super_admin' ||
+      name === 'super_admin' ||
+      slug === 'superadmin' ||
+      name === 'superadmin'
+    );
   });
 }
 

@@ -5,7 +5,6 @@ import { Modal } from '@/shared/components/ui/Modal';
 import { Button } from '@/shared/components/ui/Button';
 import { Input } from '@/shared/components/ui/Input';
 import { roleSchema, type RoleFormValues } from '../schemas';
-import { useAuthStore } from '@/shared/stores/auth-store';
 
 export function RoleFormModal({
   open,
@@ -17,13 +16,11 @@ export function RoleFormModal({
 }: {
   open: boolean;
   mode: 'create' | 'edit';
-  initial?: Partial<RoleFormValues> | null;
+  initial?: Partial<RoleFormValues> & { level?: number | string } | null;
   onClose: () => void;
   onSubmit: (values: RoleFormValues) => void | Promise<void>;
   isPending?: boolean;
 }) {
-  const canWrite = useAuthStore((s) => s.hasPermission(mode === 'create' ? 'roles.create' : 'roles.update'));
-
   const {
     register,
     handleSubmit,
@@ -35,15 +32,22 @@ export function RoleFormModal({
       name: '',
       slug: '',
       description: '',
+      level: 1,
     },
   });
 
   useEffect(() => {
     if (!open) return;
+    const levelRaw = initial?.level;
+    const level =
+      levelRaw != null && levelRaw !== '' && Number.isFinite(Number(levelRaw))
+        ? Number(levelRaw)
+        : 1;
     reset({
       name: initial?.name ?? '',
       slug: initial?.slug ?? '',
       description: initial?.description ?? '',
+      level: level >= 1 ? level : 1,
     });
   }, [open, initial, reset]);
 
@@ -60,22 +64,24 @@ export function RoleFormModal({
           <Button
             onClick={() => void handleSubmit((values) => onSubmit(values))()}
             loading={isPending}
-            disabled={!canWrite}
           >
             {mode === 'create' ? 'Create' : 'Save'}
           </Button>
         </>
       }
     >
-      {!canWrite ? (
-        <div className="mb-4 rounded-lg border border-[var(--danger)]/30 bg-red-50 px-4 py-3 text-sm text-[var(--danger)]">
-          You don?t have permission to {mode === 'create' ? 'create' : 'update'} roles.
-        </div>
-      ) : null}
-
       <form className="space-y-4" onSubmit={handleSubmit((values) => onSubmit(values))}>
         <Input label="Name" error={errors.name?.message} {...register('name')} />
         <Input label="Slug" error={errors.slug?.message} hint="Used in permission checks" {...register('slug')} />
+        <Input
+          label="Level"
+          type="number"
+          min={1}
+          step={1}
+          error={errors.level?.message}
+          hint="Hierarchy rank (integer ≥ 1). Lower roles usually use 1."
+          {...register('level')}
+        />
         <Input
           label="Description"
           error={errors.description?.message}
