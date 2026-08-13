@@ -16,7 +16,7 @@ export function RoleFormModal({
 }: {
   open: boolean;
   mode: 'create' | 'edit';
-  initial?: Partial<RoleFormValues> & { level?: number | string } | null;
+  initial?: Partial<RoleFormValues> | null;
   onClose: () => void;
   onSubmit: (values: RoleFormValues) => void | Promise<void>;
   isPending?: boolean;
@@ -40,9 +40,7 @@ export function RoleFormModal({
     if (!open) return;
     const levelRaw = initial?.level;
     const level =
-      levelRaw != null && levelRaw !== '' && Number.isFinite(Number(levelRaw))
-        ? Number(levelRaw)
-        : 1;
+      levelRaw != null && Number.isFinite(Number(levelRaw)) ? Number(levelRaw) : 1;
     reset({
       name: initial?.name ?? '',
       slug: initial?.slug ?? '',
