@@ -100,6 +100,30 @@
     background: var(--accent-soft);
     color: var(--ink);
   }
+
+  /* react-day-picker month/year <select>: keep options readable in dark theme */
+  .bingo-calendar {
+    color-scheme: light;
+    --rdp-accent-color: var(--accent);
+    --rdp-accent-background-color: var(--accent-soft);
+  }
+
+  .dark .bingo-calendar {
+    color-scheme: dark;
+  }
+
+  .bingo-calendar select.bingo-calendar-select,
+  .bingo-calendar .bingo-calendar-select {
+    color-scheme: inherit;
+    background-color: var(--surface);
+    color: var(--ink);
+  }
+
+  .bingo-calendar select.bingo-calendar-select option,
+  .bingo-calendar .bingo-calendar-select option {
+    background-color: var(--surface);
+    color: var(--ink);
+  }
 }
 
 @layer utilities {

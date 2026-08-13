@@ -47,15 +47,21 @@ export function Calendar({
     <DayPicker
       showOutsideDays={showOutsideDays}
       captionLayout={captionLayout}
-      className={cn('p-3', className)}
+      className={cn('bingo-calendar p-3 text-[var(--ink)]', className)}
       classNames={{
         months: 'relative flex flex-col gap-4 sm:flex-row',
         month: 'flex w-full flex-col gap-4',
         month_caption: 'flex h-8 items-center justify-center px-8',
-        caption_label: 'text-sm font-medium',
+        caption_label: 'text-sm font-medium text-[var(--ink)]',
         dropdowns: 'flex h-8 w-full items-center justify-center gap-2',
-        dropdown_root: 'relative rounded-md border border-[var(--line)]',
-        dropdown: 'absolute inset-0 opacity-0',
+        dropdown_root: cn(
+          'relative rounded-md border border-[var(--line)] bg-[var(--surface)] px-2 py-1',
+          'text-sm text-[var(--ink)]',
+        ),
+        // Native <select> must use dark color-scheme so option text stays readable.
+        dropdown: 'absolute inset-0 z-10 cursor-pointer opacity-0 bingo-calendar-select',
+        months_dropdown: 'bingo-calendar-select',
+        years_dropdown: 'bingo-calendar-select',
         nav: 'absolute inset-x-0 top-0 flex w-full items-center justify-between',
         button_previous: cn(
           buttonVariants({ variant: 'ghost' }),

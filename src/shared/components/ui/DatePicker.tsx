@@ -59,7 +59,10 @@ export function DatePicker({
           <CalendarIcon className="size-4 opacity-60" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-auto p-0" align="start">
+      <PopoverContent
+        className="bingo-calendar w-auto border-[var(--line)] bg-[var(--surface)] p-0 text-[var(--ink)]"
+        align="start"
+      >
         <Calendar
           mode="single"
           selected={selected}
