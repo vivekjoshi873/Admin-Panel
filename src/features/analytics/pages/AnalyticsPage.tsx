@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { PageHeader } from '@/shared/components/ui/PageHeader';
@@ -9,7 +9,6 @@ import { Button } from '@/shared/components/ui/Button';
 import { ForbiddenState } from '@/shared/components/ui/ForbiddenState';
 import { isForbidden } from '@/shared/lib/permissions';
 import { queryKeys } from '@/shared/lib/query-keys';
-import { useAuthStore } from '@/shared/stores/auth-store';
 import {
   type AnalyticsPeriod,
   getAnalyticsCustomers,
@@ -122,8 +121,6 @@ function StatCard({
 }
 
 export function AnalyticsPage() {
-  const navigate = useNavigate();
-  const canView = useAuthStore((s) => s.hasPermission('analytics.view'));
   const [period, setPeriod] = useState<PeriodKey>('30d');
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
@@ -140,36 +137,32 @@ export function AnalyticsPage() {
     return { period, groupBy: 'day' as const };
   }, [period, customStart, customEnd]);
 
+  // Always hit the API (same pattern as Roles/Users). Show Forbidden only on real 403.
   const snapshotQuery = useQuery({
     queryKey: queryKeys.analytics.root(params),
     queryFn: () => getAnalyticsSnapshot(params),
-    enabled: canView,
     placeholderData: (prev) => prev,
   });
 
   const timeseriesQuery = useQuery({
     queryKey: queryKeys.analytics.timeseries(params),
     queryFn: () => getAnalyticsTimeseries(params),
-    enabled: canView,
     placeholderData: (prev) => prev,
   });
 
   const inventoryQuery = useQuery({
     queryKey: queryKeys.analytics.inventory,
     queryFn: getAnalyticsInventory,
-    enabled: canView,
   });
 
   const productsQuery = useQuery({
     queryKey: queryKeys.analytics.products,
     queryFn: getAnalyticsProducts,
-    enabled: canView,
   });
 
   const customersQuery = useQuery({
     queryKey: queryKeys.analytics.customers(params),
     queryFn: () => getAnalyticsCustomers(params),
-    enabled: canView,
   });
 
   const snapshot = snapshotQuery.data ?? {};
@@ -275,14 +268,7 @@ export function AnalyticsPage() {
         </div>
       </div>
 
-      {!canView ? (
-        <EmptyState
-          title="Analytics permission required"
-          description="Your role needs analytics.view. Open Permission matrix, enable it on your role, then sign out and back in."
-          actionLabel="Open permission matrix"
-          onAction={() => navigate('/rbac/matrix')}
-        />
-      ) : isLoading ? (
+      {isLoading ? (
         <div className="space-y-6">
           <div className="grid gap-3 sm:grid-cols-3">
             {Array.from({ length: 3 }).map((_, i) => (

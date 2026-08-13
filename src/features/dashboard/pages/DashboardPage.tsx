@@ -9,7 +9,6 @@ import { Card } from '@/shared/components/ui/Card';
 import { ForbiddenState } from '@/shared/components/ui/ForbiddenState';
 import { isForbidden } from '@/shared/lib/permissions';
 import { queryKeys } from '@/shared/lib/query-keys';
-import { useAuthStore } from '@/shared/stores/auth-store';
 import { getDashboard, getRecentOrdersFromAnalytics, toKpiCards } from '../api';
 
 function formatNumber(value: unknown) {
@@ -76,17 +75,15 @@ function OrdersSkeleton() {
 }
 
 export function DashboardPage() {
-  const canViewAnalytics = useAuthStore((s) => s.hasPermission('analytics.view'));
-
   const dashboardQuery = useQuery({
     queryKey: queryKeys.dashboard.root,
     queryFn: getDashboard,
   });
 
+  // Always hit analytics for recent orders; show Forbidden only on real 403.
   const ordersQuery = useQuery({
     queryKey: ['admin', 'analytics', 'recent-orders'],
     queryFn: () => getRecentOrdersFromAnalytics('30d'),
-    enabled: canViewAnalytics,
   });
 
   const kpis = toKpiCards(dashboardQuery.data);
@@ -94,7 +91,7 @@ export function DashboardPage() {
 
   const refresh = () => {
     void dashboardQuery.refetch();
-    if (canViewAnalytics) void ordersQuery.refetch();
+    void ordersQuery.refetch();
   };
 
   return (
@@ -140,25 +137,7 @@ export function DashboardPage() {
           </div>
         )}
 
-        {!canViewAnalytics ? (
-          <Card>
-            <p className="font-semibold tracking-tight">Recent orders</p>
-            <p className="mt-2 text-sm text-[var(--muted)]">
-              This section loads from{' '}
-              <code className="font-mono text-xs">GET /admin/analytics</code> and needs{' '}
-              <code className="font-mono text-xs">analytics.view</code>. Assign it to your role,
-              then sign out and back in.
-            </p>
-            <div className="mt-4">
-              <Link
-                to="/rbac/matrix"
-                className="inline-flex h-8 items-center rounded-lg border border-[var(--line)] bg-[var(--surface)] px-3 text-xs font-semibold transition hover:bg-black/[0.03] dark:hover:bg-white/[0.04]"
-              >
-                Open permission matrix
-              </Link>
-            </div>
-          </Card>
-        ) : ordersQuery.isLoading ? (
+        {ordersQuery.isLoading ? (
           <OrdersSkeleton />
         ) : (
           <div className="overflow-hidden rounded-2xl border border-[var(--line)] bg-[var(--surface)]/75 shadow-[0_10px_30px_rgb(20_24_22_/_0.04)] backdrop-blur">
@@ -170,6 +149,14 @@ export function DashboardPage() {
             {ordersQuery.isError && isForbidden(ordersQuery.error) ? (
               <div className="p-4">
                 <ForbiddenState error={ordersQuery.error} fallback="analytics.view" />
+                <div className="mt-3">
+                  <Link
+                    to="/rbac/matrix"
+                    className="inline-flex h-8 items-center rounded-lg border border-[var(--line)] bg-[var(--surface)] px-3 text-xs font-semibold transition hover:bg-black/[0.03] dark:hover:bg-white/[0.04]"
+                  >
+                    Open permission matrix
+                  </Link>
+                </div>
               </div>
             ) : ordersQuery.isError ? (
               <div className="p-4">
