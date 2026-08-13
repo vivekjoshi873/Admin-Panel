@@ -6,6 +6,13 @@ import { EmptyState } from '@/shared/components/ui/EmptyState';
 import { Skeleton } from '@/shared/components/ui/Skeleton';
 import { ForbiddenState } from '@/shared/components/ui/ForbiddenState';
 import { Checkbox } from '@/shared/components/ui/Checkbox';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/shared/components/ui/Select';
 import { toast } from '@/shared/stores/toast-store';
 import { getErrorMessage } from '@/shared/lib/cn';
 import { isForbidden } from '@/shared/lib/permissions';
@@ -30,6 +37,8 @@ export function PermissionMatrixPage() {
   const permissionsModules = modulesQuery.data ?? [];
 
   const activeRoleId = roleId || entityId(rolesQuery.data?.[0] ?? {});
+  const activeRoleName =
+    rolesQuery.data?.find((r: any) => entityId(r) === activeRoleId)?.name ?? 'Select role';
 
   // Assigned permissions for the selected role.
   const assignedQuery = useQuery({
@@ -154,26 +163,35 @@ export function PermissionMatrixPage() {
 
       {rolesQuery.data?.length ? (
         <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-            <label className="text-sm text-[var(--muted)]">Role</label>
-            <select
-              className="h-10 w-full rounded-lg border border-[var(--line)] bg-[var(--surface)] px-3 text-[var(--ink)] outline-none focus:border-[var(--accent)]"
-              value={activeRoleId}
-              onChange={(e) => {
-                setRoleId(e.target.value);
+          <div className="flex w-full flex-col gap-2 sm:w-72 sm:flex-row sm:items-center">
+            <label className="shrink-0 text-sm text-[var(--muted)]">Role</label>
+            <Select
+              value={activeRoleId || undefined}
+              onValueChange={(value) => {
+                setRoleId(value);
                 setDraftIds(null);
               }}
             >
-              {rolesQuery.data.map((r: any) => (
-                <option key={entityId(r)} value={entityId(r)}>
-                  {r.name}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger className="w-full cursor-pointer" aria-label="Select role">
+                <SelectValue placeholder="Select role">{activeRoleName}</SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {rolesQuery.data.map((r: any) => (
+                  <SelectItem key={entityId(r)} value={entityId(r)} className="cursor-pointer">
+                    {r.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="w-full sm:w-72">
-            <Input label="Search permissions" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Type name or slug" />
+            <Input
+              label="Search permissions"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Type name or slug"
+            />
           </div>
         </div>
       ) : (
