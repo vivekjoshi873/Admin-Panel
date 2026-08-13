@@ -7,6 +7,7 @@ import { Skeleton } from '@/shared/components/ui/Skeleton';
 import { EmptyState } from '@/shared/components/ui/EmptyState';
 import { Button } from '@/shared/components/ui/Button';
 import { ForbiddenState } from '@/shared/components/ui/ForbiddenState';
+import { DatePicker } from '@/shared/components/ui/DatePicker';
 import { isForbidden } from '@/shared/lib/permissions';
 import { queryKeys } from '@/shared/lib/query-keys';
 import {
@@ -17,6 +18,7 @@ import {
   getAnalyticsSnapshot,
   getAnalyticsTimeseries,
 } from '../api';
+import { parse } from 'date-fns';
 
 type PeriodKey = AnalyticsPeriod | 'custom';
 
@@ -233,17 +235,18 @@ export function AnalyticsPage() {
 
         {period === 'custom' ? (
           <div className="flex flex-wrap items-center gap-2">
-            <input
-              type="date"
+            <DatePicker
               value={customStart}
-              onChange={(e) => setCustomStart(e.target.value)}
-              className="h-10 rounded-lg border border-[var(--line)] bg-[var(--surface)] px-3"
+              onChange={setCustomStart}
+              placeholder="Start date"
+              toDate={customEnd ? parse(customEnd, 'yyyy-MM-dd', new Date()) : undefined}
             />
-            <input
-              type="date"
+            <span className="text-sm text-[var(--muted)]">to</span>
+            <DatePicker
               value={customEnd}
-              onChange={(e) => setCustomEnd(e.target.value)}
-              className="h-10 rounded-lg border border-[var(--line)] bg-[var(--surface)] px-3"
+              onChange={setCustomEnd}
+              placeholder="End date"
+              fromDate={customStart ? parse(customStart, 'yyyy-MM-dd', new Date()) : undefined}
             />
           </div>
         ) : null}
