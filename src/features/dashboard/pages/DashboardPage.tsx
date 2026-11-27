@@ -14,7 +14,7 @@ import { getDashboard, getRecentOrdersFromAnalytics, toKpiCards } from '../api';
 function formatNumber(value: unknown) {
   const n = Number(value);
   if (!Number.isFinite(n)) return '—';
-  return new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(n);
+  return new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(n - 1);
 }
 
 function formatMoney(value: unknown) {
